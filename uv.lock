@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.13"
 
 [[package]]
-name = "mask-game"
+name = "monomask"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
