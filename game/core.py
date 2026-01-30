@@ -10,7 +10,7 @@ def run():
 
     # Game setup
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Mask Swap Game")
+    pygame.display.set_caption("MonoMask")
     clock = pygame.time.Clock()
 
     # Create player (starts as WHITE character)
