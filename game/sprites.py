@@ -1,4 +1,6 @@
 import pygame
+import math
+import random
 from .settings import *
 
 class Player:
@@ -14,7 +16,19 @@ class Player:
         self.gravity = 0.8
         self.on_ground = False
         self.is_white = True
-          # Start as white character
+        
+        # Animation State
+        self.anim_timer = 0.0
+        self.pos_history = [] # For Echo effect
+        
+        # Fluid Transition State (0.0 = Pure Peace, 1.0 = Pure Tension)
+        self.tension_value = 0.0 
+        
+        # Combat State
+        self.shoot_cooldown = 0
+        self.slash_timer = 0.0
+        self.aim_angle = 0.0 # Radians
+        self.shake_intensity = 0.0
         
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
@@ -22,20 +36,64 @@ class Player:
     def swap_mask(self):
         """Swap between white and black character"""
         self.is_white = not self.is_white
-
+        
     def is_neutral_collision(self, platform):
         if platform.is_neutral:
             return True
         return (self.is_white and platform.is_white) or (not self.is_white and not platform.is_white)
     
+    
     def update(self, platforms):
+        # Update animation timer
+        self.anim_timer += 0.1
+        
+        # Decay shake
+        self.shake_intensity *= 0.85
+        if self.shake_intensity < 0.5:
+            self.shake_intensity = 0
+        
+        # Update cooldown
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= 1
+            
+        # Update slash timer
+        if self.slash_timer > 0:
+            self.slash_timer -= 1
+        
+        # Smoothly interpolate tension value
+        target_tension = 0.0 if self.is_white else 1.0
+        # Lerp factor (speed of transition)
+        lerp_speed = 0.05
+        self.tension_value += (target_tension - self.tension_value) * lerp_speed
+        
+        # Update Position History (Keep last 10 frames)
+        self.pos_history.append((self.x, self.y))
+        if len(self.pos_history) > 10:
+            self.pos_history.pop(0)
+
+        # Mouse Aiming Logic
+        mx, my = pygame.mouse.get_pos()
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        
+        # Calculate angle to mouse
+        self.aim_angle = math.atan2(my - cy, mx - cx)
+        
+        # Update Facing based on aim
+        if mx > cx:
+            self.facing = 1
+        else:
+            self.facing = -1
+
         # Horizontal movement
         keys = pygame.key.get_pressed()
         self.vel_x = 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.vel_x = -self.speed
+            # self.facing = -1 # Overridden by mouse aim
         if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             self.vel_x = self.speed
+            # self.facing = 1 # Overridden by mouse aim
         
         # Jump
         if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
@@ -110,17 +168,248 @@ class Player:
             self.vel_y = 0
     
     def draw(self, screen):
-        # Visual Config (User Requested Inversion):
-        # Peace Mode (White BG): Black Body, White Border
-        # Tension Mode (Black BG): White Body, Black Border
+        # Visual Config: Samurai Prototype (Standard Resolution)
         
+        # Colors:
+        # Quiet (White Mode): Dark Samurai on White BG
+        # Tension (Black Mode): Light Samurai on Black BG
         fill_color = BLACK_MATTE if self.is_white else CREAM
         border_color = CREAM if self.is_white else BLACK_MATTE
+        sword_color = GRAY
         
-        # Draw Fill
-        pygame.draw.rect(screen, fill_color, self.get_rect())
-        # Draw Border
-        pygame.draw.rect(screen, border_color, self.get_rect(), 3) # 3px border
+        # Center coordinates
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        
+        t = self.anim_timer
+        tension = self.tension_value
+        
+        # --- Helper: Shiver Effect ---
+        def shiver_point(x, y, intensity):
+            if intensity <= 0.01:
+                return (x, y)
+            # "Tiny fluctuations"
+            shake_amp = 3.0 * intensity
+            dx = (random.random() - 0.5) * shake_amp
+            dy = (random.random() - 0.5) * shake_amp
+            return (x + dx, y + dy)
+
+        # --- BODY (Floating Robes) ---
+        hover_y = math.sin(t * 0.1) * 3
+        
+        shoulder_y = cy - self.height * 0.25 + hover_y
+        feet_y = cy + self.height * 0.4 + hover_y
+        
+        body_top_w = self.width * 0.3
+        body_bottom_w = self.width * 0.7 
+        
+        # Facing direction
+        dir_x = self.facing
+        
+        # Robe construction
+        robe_pts = []
+        robe_pts.append(shiver_point(cx + body_top_w/2, shoulder_y, tension)) 
+        
+        # Bottom Edge (with wave physics)
+        num_robe_points = 20
+        
+        for i in range(num_robe_points + 1):
+            prog = i / num_robe_points
+            base_x = (cx + body_bottom_w/2) - (body_bottom_w * prog)
+            
+            # Physics for cloth
+            ripple = math.sin(prog * 10 + t * 0.2) * 3
+            # In tension, cloth gets more jagged/tattered
+            tatter = abs(math.sin(prog * 15 - t * 0.3)) * 8
+            
+            wave_y = ripple * (1.0 - tension) + tatter * tension
+            
+            # Tilt based on movement
+            tilt_x = -self.vel_x * 2 * prog
+            
+            pt_x = base_x + tilt_x
+            pt_y = feet_y + wave_y
+            
+            robe_pts.append(shiver_point(pt_x, pt_y, tension))
+            
+        robe_pts.append(shiver_point(cx - body_top_w/2, shoulder_y, tension))
+        
+        pygame.draw.polygon(screen, fill_color, robe_pts)
+        
+        # --- HEAD ---
+        # To make the border shiver, we draw the circle as a polygon
+        head_radius = self.width * 0.22
+        head_cy = shoulder_y - head_radius * 0.6
+        head_cx = cx
+        
+        head_pts = []
+        num_head_segments = 24
+        for i in range(num_head_segments):
+            angle = (i / num_head_segments) * 2 * math.pi
+            px = head_cx + math.cos(angle) * head_radius
+            py = head_cy + math.sin(angle) * head_radius
+            head_pts.append(shiver_point(px, py, tension))
+            
+        pygame.draw.polygon(screen, fill_color, head_pts)
+        
+        # --- HAT (Conical) ---
+        hat_w = self.width * 1.3
+        hat_h = self.height * 0.18
+        hat_base_y = head_cy
+        
+        # Main shaking of the hat object
+        obj_shake_x = (random.random() - 0.5) * 5 * tension
+        obj_shake_y = (random.random() - 0.5) * 2 * tension
+        
+        # Define base points
+        p1 = (cx - hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
+        p2 = (cx + hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
+        p3 = (cx + obj_shake_x, hat_base_y - hat_h + obj_shake_y)
+        
+        hat_pts = []
+        # Bottom edge (subdivided)
+        steps = 10
+        for i in range(steps + 1):
+             t_val = i / steps
+             lx = p1[0] + (p2[0] - p1[0]) * t_val
+             ly = p1[1] + (p2[1] - p1[1]) * t_val
+             hat_pts.append(shiver_point(lx, ly, tension))
+             
+        # Top point
+        hat_pts.append(shiver_point(p3[0], p3[1], tension))
+        
+        pygame.draw.polygon(screen, fill_color, hat_pts)
+        
+        # Hat Detail: Horizontal Band
+        # Just a line
+        band_y = hat_base_y - (hat_h * 0.3) + obj_shake_y
+        band_w = hat_w * 0.6
+        bx1 = cx - band_w/2 + obj_shake_x
+        bx2 = cx + band_w/2 + obj_shake_x
+        
+        # Shiver line endpoints
+        bp1 = shiver_point(bx1, band_y, tension)
+        bp2 = shiver_point(bx2, band_y, tension)
+        
+        pygame.draw.line(screen, border_color, bp1, bp2, 2)
+        
+        # --- AIM RETICLE ---
+        # Bubble Shooter styled reticle dot
+        # Only in Peace Mode (White)
+        if self.is_white:
+            aim_r = self.width * 1.0 # Radius from center
+            reticle_x = cx + math.cos(self.aim_angle) * aim_r
+            reticle_y = cy + math.sin(self.aim_angle) * aim_r
+            
+            # Draw reticle
+            # Contrast with BG
+            reticle_color = BLACK_MATTE
+            pygame.draw.circle(screen, reticle_color, (int(reticle_x), int(reticle_y)), 3)
+
+        # --- KATANA ---
+        if self.is_white:
+            # Peace Mode: Sheathed on Hip
+            hip_x = cx - (10 * dir_x)
+            hip_y = shoulder_y + 10
+            sheath_tip_x = hip_x - (40 * dir_x)
+            sheath_tip_y = shoulder_y + 35
+            
+            sp1 = shiver_point(hip_x, hip_y, tension)
+            sp2 = shiver_point(sheath_tip_x, sheath_tip_y, tension)
+            
+            pygame.draw.line(screen, sword_color, sp1, sp2, 4)
+            pygame.draw.circle(screen, sword_color, (int(sp1[0]), int(sp1[1])), 4)
+        else:
+            # Tension Mode: Drawn or Slashing
+            if self.slash_timer > 0:
+                # SLASH ANIMATION
+                # A bright MAXIMIZED arc in direction of aim
+                slash_dist = 85 # Increased Range
+                start_angle = self.aim_angle - 0.8 # Wider Arc
+                end_angle = self.aim_angle + 0.8
+                
+                # Draw Arc (as a set of lines)
+                arc_points = []
+                num_seg = 10 # Smoother
+                for i in range(num_seg + 1):
+                     prog = i / num_seg
+                     ang = start_angle + (end_angle - start_angle) * prog
+                     # Jagged rage shake
+                     r_offset = (random.random() - 0.5) * 5
+                     ax = cx + math.cos(ang) * (slash_dist + r_offset)
+                     ay = cy + math.sin(ang) * (slash_dist + r_offset)
+                     arc_points.append((ax, ay))
+                
+                # Draw Swipe ("Rage" Swing)
+                pygame.draw.lines(screen, WHITE, False, arc_points, 8) # Thicker line
+                
+                # Draw Sword at end of swing state
+                sword_x = cx + math.cos(end_angle) * 60 # Sword extends out
+                sword_y = cy + math.sin(end_angle) * 60
+                pygame.draw.line(screen, sword_color, (cx, cy), (sword_x, sword_y), 4)
+                
+            else:
+                # READY POSE (Drawn)
+                # Sword held out slightly
+                hand_x = cx + (20 * dir_x)
+                hand_y = shoulder_y + 15
+                
+                # Tip points forward/down
+                tip_x = hand_x + (30 * dir_x)
+                tip_y = hand_y + 10
+                
+                sp1 = shiver_point(hand_x, hand_y, tension)
+                sp2 = shiver_point(tip_x, tip_y, tension)
+                
+                pygame.draw.line(screen, sword_color, sp1, sp2, 3)
+
+    def melee_attack(self):
+        """Triggers a melee slash"""
+        if self.shoot_cooldown > 0 or self.slash_timer > 0:
+            return None
+            
+        self.shoot_cooldown = 10 # Faster melee attacks
+        self.slash_timer = 12 # Animation duration
+        self.shake_intensity = 15.0 # Screen shake kick
+        
+        # Spawn Shockwaves (Multi-wavefront)
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        
+        waves = []
+        for i in range(5):
+            # Spaced out sequence
+            dist = 40 - (i * 15) 
+            sx = cx + math.cos(self.aim_angle) * dist
+            sy = cy + math.sin(self.aim_angle) * dist
+            waves.append(SlashWave(sx, sy, self.aim_angle))
+        
+        return waves
+
+    def shoot(self):
+        """Creates a projectile moving in the facing direction"""
+        if not self.is_white: # Only in Peace Mode
+            return None
+            
+        if self.shoot_cooldown > 0:
+            return None
+            
+        self.shoot_cooldown = 5 # 5 frames @ 60 FPS = ~12 shots/sec (Very satisfying)
+        
+        # Spawn from "hand" position (approximate)
+        cx = self.x + self.width / 2
+        cy = self.y + self.height / 2
+        
+        # Spawn at reticle position
+        aim_r = self.width * 1.0
+        spawn_x = cx + math.cos(self.aim_angle) * aim_r
+        spawn_y = cy + math.sin(self.aim_angle) * aim_r
+        
+        speed = 15
+        vel_x = math.cos(self.aim_angle) * speed
+        vel_y = math.sin(self.aim_angle) * speed
+        
+        return Projectile(spawn_x, spawn_y, vel_x, vel_y, self.is_white)
 
 class Platform:
     def __init__(self, x, y, width, height, is_white=True, is_neutral=False):
@@ -161,3 +450,189 @@ class Platform:
         else:
             # Inactive: Completely Invisible
             pass
+
+class Projectile:
+    def __init__(self, x, y, vx, vy, is_white_source):
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.radius = 12
+        # Color logic:
+        # If source is White (Peace), Projectile is Dark (Black Matte)
+        # If source is Black (Tension), Projectile is Light (Cream)
+        self.color = BLACK_MATTE if is_white_source else CREAM
+        self.timer = 0.0
+        self.marked_for_deletion = False
+        
+        # Dynamic shape seed
+        self.seed = random.random() * 100
+    
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.timer += 0.2
+        
+        # Bounds check
+        if self.x < -100 or self.x > SCREEN_WIDTH + 100:
+            self.marked_for_deletion = True
+            
+    def get_rect(self):
+        return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
+
+    def draw(self, screen):
+        # Draw a wobbly blob
+        num_points = 20
+        points = []
+        cx, cy = self.x, self.y
+        
+        for i in range(num_points):
+            angle = (i / num_points) * 2 * math.pi
+            
+            # Wobble logic
+            # High frequency wobble for "active" liquid feel
+            wobble = math.sin(angle * 5 + self.timer) * 3
+            wobble += math.cos(angle * 3 - self.timer * 2) * 2
+            
+            r = self.radius + wobble
+            
+            px = cx + math.cos(angle) * r
+            py = cy + math.sin(angle) * r
+            points.append((px, py))
+            
+        pygame.draw.polygon(screen, self.color, points)
+        
+        # Trail/Tail particles?
+        # Maybe complex for now, let's stick to the blob.
+
+class SplatBlast:
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.particles = []
+        self.timer = 0
+        self.lifetime = 30 # Longer lifetime for fluid feel
+        
+        # 1. Main Splash Burst (Large blobs)
+        for _ in range(15):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(2, 12)
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            size = random.uniform(4, 10)
+            self.particles.append({
+                'x': 0, 
+                'y': 0, 
+                'vx': vx, 
+                'vy': vy, 
+                'size': size,
+                'decay': 0.9, # Slow decay
+                'drag': 0.85  # Fast drag (fluid stopping)
+            })
+            
+        # 2. High Velocity Droplets (Tiny, fast)
+        for _ in range(20):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(10, 20)
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            size = random.uniform(2, 4)
+            self.particles.append({
+                'x': 0, 
+                'y': 0, 
+                'vx': vx, 
+                'vy': vy, 
+                'size': size,
+                'decay': 0.95, 
+                'drag': 0.9
+            })
+            
+    def update(self):
+        self.timer += 1
+        
+        for p in self.particles:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            
+            # Physics
+            p['vx'] *= p['drag']
+            p['vy'] *= p['drag']
+            
+            # Gravity? Maybe slight gravity for "drip"
+            p['vy'] += 0.5
+            
+            # Shrink
+            p['size'] *= p['decay']
+            
+    def draw(self, screen):
+        for p in self.particles:
+            if p['size'] < 1:
+                continue
+            
+            draw_x = self.x + p['x']
+            draw_y = self.y + p['y']
+            
+            # Draw circle or maybe a small polygon for jaggedness?
+            # Circle is "fluid" enough
+            pygame.draw.circle(screen, self.color, (int(draw_x), int(draw_y)), int(p['size']))
+
+class SlashWave:
+    def __init__(self, x, y, angle):
+        self.x = x
+        self.y = y
+        self.angle = angle
+        self.speed = 22
+        self.lifetime = 12 # Quick dissipate
+        self.timer = 0
+        
+    def update(self):
+        self.timer += 1
+        # Move forward
+        self.x += math.cos(self.angle) * self.speed
+        self.y += math.sin(self.angle) * self.speed
+        
+    def draw(self, screen):
+        # Draw a "Distorted Wavefront" (Semi-circle with noise)
+        
+        # 1. Define curvature
+        # The wave is 'bowed' out.
+        # We model this as an arc of a circle centered BEHIND the wave front.
+        radius = 60 
+        
+        # Center of the imaginary circle
+        back_dist = radius
+        ccx = self.x - math.cos(self.angle) * back_dist
+        ccy = self.y - math.sin(self.angle) * back_dist
+        
+        # 2. Generate arc points
+        points = []
+        num_pts = 20
+        arc_angle = 1.2 # Radian spread (+/-)
+        
+        for i in range(num_pts + 1):
+            # Normalized t from -1 to 1
+            t = (i / num_pts) * 2 - 1 
+            
+            # Current angle on the arc
+            a = self.angle + t * arc_angle
+            
+            # Distortion (The "Wave" effect)
+            # Sine wave perturbation
+            freq = 8.0
+            amp = 4.0
+            # Phase shift by time for motion along the wave
+            noise = math.sin(t * freq + self.timer * 0.5) * amp
+            
+            # Apply secondary jitter?
+            jitter = (random.random() - 0.5) * 3
+            
+            current_r = radius + noise + jitter
+            
+            px = ccx + math.cos(a) * current_r
+            py = ccy + math.sin(a) * current_r
+            
+            points.append((px, py))
+            
+        if len(points) > 1:
+            pygame.draw.lines(screen, WHITE, False, points, 3)

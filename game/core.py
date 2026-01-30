@@ -2,7 +2,7 @@ import pygame
 import sys
 import random
 from .settings import *
-from .sprites import Player, Platform
+from .sprites import Player, Platform, SplatBlast
 from .utils import draw_game, draw_distortion, CrumbleEffect
 
 def run():
@@ -41,9 +41,12 @@ def run():
             # 7. GOAL Platform (Neutral, high up)
             Platform(900, 50, 300, 30, is_neutral=True),
         ]
-        return player, platforms
+        
+        projectiles = []
+        effects = []
+        return player, platforms, projectiles, effects
 
-    player, platforms = reset_game()
+    player, platforms, projectiles, effects = reset_game()
 
     # Main game loop
     running = True
@@ -77,7 +80,7 @@ def run():
                 if game_over:
                     if event.key == pygame.K_r:
                         # Restart
-                        player, platforms = reset_game()
+                        player, platforms, projectiles, effects = reset_game()
                         tension_duration = 0.0
                         overload_timer = 0.0
                         game_over = False
@@ -92,13 +95,33 @@ def run():
                             transition_center = getattr(player, 'get_rect', lambda: pygame.Rect(0,0,0,0))().center
                             
                             # Capture OLD state (including distortion)
-                            draw_game(old_screen_capture, player.is_white, player, platforms)
+                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects)
                             # Note: We capture with current intensity
                             intensity = min(1.0, tension_duration / 12.0)
                             draw_distortion(old_screen_capture, intensity)
                             
                             # Perform Swap
                             player.swap_mask()
+                            
+                    # Shooting Input (Key: X)
+                    if event.key == pygame.K_x:
+                        proj = player.shoot()
+                        if proj:
+                            projectiles.append(proj)
+            
+            # Shooting / Melee Input (Mouse: Left Click)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1: # Left Click
+                    if player.is_white:
+                        # Peace Mode: Shoot
+                        proj = player.shoot()
+                        if proj:
+                            projectiles.append(proj)
+                    else:
+                        # Tension Mode: Melee
+                        new_effects = player.melee_attack()
+                        if new_effects:
+                            effects.extend(new_effects)
         
         if not game_over:
             # Tension Logic based on state
@@ -124,13 +147,51 @@ def run():
             # Update logic
             player.update(platforms)
             
+            # Projectile Logic
+            for proj in projectiles[:]:
+                proj.update()
+                if proj.marked_for_deletion:
+                    projectiles.remove(proj)
+                    continue
+                
+                # Collision Check
+                proj_rect = proj.get_rect()
+                hit = False
+                
+                for platform in platforms:
+                    # Check if platform is active/solid
+                    if player.is_neutral_collision(platform):
+                        if proj_rect.colliderect(platform.get_rect()):
+                            hit = True
+                            # Spawn splat
+                            effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                            break
+                
+                if hit:
+                    projectiles.remove(proj)
+
+            # Effects Logic
+            for eff in effects[:]:
+                eff.update()
+                if eff.timer > eff.lifetime:
+                    effects.remove(eff)
+
+            
             # Calculate Screen Shake
             shake_x = 0
             shake_y = 0
-            if intensity > 0:
-                shake_amp = 10 * intensity
-                if overload_timer > 0:
-                    shake_amp += overload_timer * 5 
+            
+            # Combine sources of shake
+            total_intensity = intensity
+            shake_amp = 10 * total_intensity
+            
+            if overload_timer > 0:
+                shake_amp += overload_timer * 5 
+                
+            # Add Player Trauma/Shake (e.g. from Katana)
+            shake_amp += getattr(player, 'shake_intensity', 0)
+            
+            if shake_amp > 0:
                 shake_x = int((random.random() - 0.5) * 2 * shake_amp)
                 shake_y = int((random.random() - 0.5) * 2 * shake_amp)
             
@@ -140,7 +201,7 @@ def run():
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
-                draw_game(next_state_capture, player.is_white, player, platforms)
+                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -165,7 +226,7 @@ def run():
                     transition_active = False
             else:
                 # Standard Draw
-                draw_game(canvas, player.is_white, player, platforms)
+                draw_game(canvas, player.is_white, player, platforms, projectiles, effects)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake

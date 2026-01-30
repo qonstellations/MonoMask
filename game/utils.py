@@ -3,7 +3,7 @@ from .settings import *
 import random
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -11,6 +11,16 @@ def draw_game(surface, is_white_mode, player, platforms):
     # Draw platforms
     for platform in platforms:
         platform.draw(surface, is_white_mode)
+    
+    # Draw projectiles
+    if projectiles:
+        for proj in projectiles:
+            proj.draw(surface)
+            
+    # Draw effects
+    if effects:
+        for eff in effects:
+            eff.draw(surface)
     
     # Draw player
     player.draw(surface)
