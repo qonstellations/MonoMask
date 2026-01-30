@@ -4,8 +4,8 @@ import random
 
 # Helper function to draw the game state
 def draw_game(surface, is_white_mode, player, platforms):
-    # Background
-    bg_color = BLACK if is_white_mode else WHITE
+    # Background (Inverted: White Mode = White BG)
+    bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
     
     # Draw platforms
@@ -18,18 +18,18 @@ def draw_game(surface, is_white_mode, player, platforms):
     # Draw UI
     font = pygame.font.Font(None, 36)
     # Text color inverse of background
-    text_color = WHITE if not is_white_mode else BLACK
+    text_color = BLACK if is_white_mode else WHITE
     
-    mode_text = 'WHITE' if is_white_mode else 'BLACK'
-    text = font.render(f"Press E/SHIFT to swap | Mode: {mode_text}", True, (255, 255, 0)) # Yellow always visible
+    mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
+    text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
     surface.blit(text, (10, 10))
     
-    info_text = font.render(f"White/Black: Lands on SAME color | GOLD: Neutral (Lands on BOTH)", True, (255, 255, 0))
+    info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
     surface.blit(info_text, (10, 50))
 
     # Goal Text
     goal_font = pygame.font.Font(None, 50)
-    goal_text = goal_font.render("GOAL ->", True, GOLD)
+    goal_text = goal_font.render("GOAL ->", True, GRAY)
     surface.blit(goal_text, (950, 10))
 
 def draw_distortion(surface, intensity):
@@ -94,7 +94,7 @@ class CrumbleEffect:
             p['vy'] += self.gravity # Apply gravity
 
     def draw(self, surface):
-        surface.fill(BLACK) # Clear background
+        surface.fill(CREAM) # Clear background to White (Peace default)
         for p in self.particles:
             surface.blit(p['sys'], (int(p['x']), int(p['y'])))
             

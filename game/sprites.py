@@ -59,7 +59,6 @@ class Player:
         player_rect = self.get_rect()
         for platform in platforms:
             # Check if this platform should collide
-            # Check if this platform should collide
             # Interaction Mode: Like lands on Like OR Neutral lands on everything
             should_collide = self.is_neutral_collision(platform)
             
@@ -111,11 +110,17 @@ class Player:
             self.vel_y = 0
     
     def draw(self, screen):
-        color = WHITE if self.is_white else BLACK
-        pygame.draw.rect(screen, color, self.get_rect())
-        # Add a border to differentiate if needed, though high contrast helps
-        border_color = GRAY
-        pygame.draw.rect(screen, border_color, self.get_rect(), 2)
+        # Visual Config (User Requested Inversion):
+        # Peace Mode (White BG): Black Body, White Border
+        # Tension Mode (Black BG): White Body, Black Border
+        
+        fill_color = BLACK_MATTE if self.is_white else CREAM
+        border_color = CREAM if self.is_white else BLACK_MATTE
+        
+        # Draw Fill
+        pygame.draw.rect(screen, fill_color, self.get_rect())
+        # Draw Border
+        pygame.draw.rect(screen, border_color, self.get_rect(), 3) # 3px border
 
 class Platform:
     def __init__(self, x, y, width, height, is_white=True, is_neutral=False):
@@ -134,22 +139,25 @@ class Platform:
             color = GRAY
             # Neutral is always filled/active
             pygame.draw.rect(screen, color, self.get_rect())
-            pygame.draw.rect(screen, BLACK if is_white_mode else WHITE, self.get_rect(), 2) # Border contrast
             return
 
         # Platform drawing depends on mode
-        # If platform is same color as mode (Active) -> Filled
-        # If platform is diff color as mode (Inactive) -> Outline (Ghost)
-        should_be_filled = (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
+        # Logic: "Like lands on Like"
+        should_be_active = (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
         
-        color = WHITE if self.is_white else BLACK
+        # Visuals: Invert for contrast
+        # BG is White (Peace) -> Active elements should be BLACK
+        # BG is Black (Tension) -> Active elements should be WHITE
+        active_color = BLACK if is_white_mode else WHITE
         
-        if should_be_filled:
-            pygame.draw.rect(screen, color, self.get_rect())
-            # Border for contrast
-            border_color = GRAY
-            pygame.draw.rect(screen, border_color, self.get_rect(), 2)
+        if should_be_active:
+            # Active: Contrast with BG (Black on White, or White on Black)
+            # Actually user requested: "invisible and only be able to see the platforms of the current dimension"
+            # And user didn't specify platform style, but let's stick to High Contrast for them so they are visible?
+            # User said prev: "Active elements contrast with BG".
+            # Let's keep Active platforms Solid Contrast (Black on White BG).
+            
+            pygame.draw.rect(screen, active_color, self.get_rect())
         else:
-            # Ghost mode (outline only)
-            border_color = color # Use its own color as outline
-            pygame.draw.rect(screen, border_color, self.get_rect(), 2)
+            # Inactive: Completely Invisible
+            pass
