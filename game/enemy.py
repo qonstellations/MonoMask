@@ -146,8 +146,20 @@ class MirrorRonin:
         # Face player
         self.facing = -1 if dist_x > 0 else 1
 
-    def draw(self, screen, is_white_mode, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
         ox, oy = offset
+        
+        # Apply Camera if available
+        if camera:
+            # Note: MirrorRonin logic uses self.x directly usually.
+            # If standardizing, we might use camera.apply_point.
+            # But mostly we rely on offset here.
+            # Let's verify offset vs camera usage.
+            # If camera is passed, usually we use it.
+            # But the 'offset' argument is already calculated from camera_offset in core.py.
+            # So offset IS the camera translation basically.
+            pass
+
         cx = (self.x - ox) + self.width / 2
         cy = (self.y - oy) + self.height / 2
         

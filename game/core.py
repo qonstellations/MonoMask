@@ -14,10 +14,14 @@ def run():
     # Game setup
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("MonoMask")
+    pygame.mouse.set_visible(False) # Hide system cursor, use in-game reticle
     clock = pygame.time.Clock()
     
     # Initialize Background
     background = ParallaxBackground()
+    
+    # Camera object (optional, currently using manual offset)
+    camera = None
 
     def reset_game():
         # Create player (starts as WHITE character)
@@ -25,16 +29,6 @@ def run():
     
         # Fixed Level Layout (Based on Reference Image approximation)
         # Sequence of platforms going Right and Up
-        
-        map_width = 3000
-        map_height = 2000
-        
-        # Base floor level reference (Screen Height is ~768 usually, but map is 2000)
-        # Let's keep action near the middle-bottom 
-        base_y = map_height - 300
-        
-        # FULL Reference Map Layout - Every platform from the image
-        # Map is wide (6000px) to capture the long horizontal flow
         
         map_width = 6000
         map_height = 2000
@@ -70,6 +64,22 @@ def run():
             
             # NO SPIKES GENERATED
             
+        # Spawn Enemies
+        # Helper function to spawn based on level data
+        def spawn_enemies_for_level(plat_data):
+            spawned = []
+            if not plat_data:
+                return spawned
+                
+            # User Request: Spawn on the LAST platform by default
+            last_plat = plat_data[-1]
+            
+            # center x of platform
+            spawn_x = last_plat['x'] + last_plat['w'] // 2 - 25 # -25 for half enemy width
+            spawn_y = last_plat['y'] - 60 # Above platform
+            
+        # enemies = spawn_enemies_for_level(platforms_data)
+        enemies = [] # User requested NO ENEMIES for testing
         
         projectiles = []
         effects = []
@@ -101,7 +111,7 @@ def run():
     transition_center = (0, 0)
     
     # Camera
-    camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+    # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
     
     # Surfaces
     canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Used for final compositing
@@ -146,14 +156,23 @@ def run():
                             transition_active = True
                             transition_radius = 0
                             # Get player center in SCREEN coordinates (camera-adjusted)
+                            # Get player center in SCREEN coordinates (camera-adjusted)
                             player_rect = player.get_rect()
-                            player_screen_x = player_rect.centerx + camera.camera.x
-                            player_screen_y = player_rect.centery + camera.camera.y
+                            player_screen_x = player_rect.centerx - scroll_x
+                            player_screen_y = player_rect.centery - scroll_y
                             transition_center = (int(player_screen_x), int(player_screen_y))
                             
                             # Capture OLD state (including distortion)
                             # Passing background=background to ensure consistent capture
-                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, background, spikes, camera, enemies, offset=camera_offset)
+                            draw_game(old_screen_capture, player.is_white, player, 
+                                     platforms=platforms, 
+                                     projectiles=projectiles, 
+                                     effects=effects, 
+                                     background=background, 
+                                     spikes=spikes, 
+                                     camera=camera, 
+                                     enemies=enemies, 
+                                     offset=camera_offset)
                             # Note: We capture with current intensity
                             intensity = min(1.0, tension_duration / 12.0)
                             draw_distortion(old_screen_capture, intensity)
@@ -237,7 +256,16 @@ def run():
                      transition_radius = 0
                      transition_center = player.get_rect().center
                      
-                     draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, enemies, offset=camera_offset)
+                     
+                     draw_game(old_screen_capture, player.is_white, player, 
+                              platforms=platforms, 
+                              projectiles=projectiles, 
+                              effects=effects, 
+                              background=background,
+                              spikes=spikes,
+                              camera=camera,
+                              enemies=enemies, 
+                              offset=camera_offset)
                      draw_distortion(old_screen_capture, intensity)
                      
                      player.swap_mask() # Forces to Black
@@ -261,11 +289,22 @@ def run():
             target_scroll_x = player.x - SCREEN_WIDTH / 2 + player.width / 2
             
             # Smooth scroll (Lerp)
+            # Smooth scroll (Lerp)
             scroll_x += (target_scroll_x - scroll_x) * 0.1
+            
+            # Vertical Scroll (Fix for AIMING / Drawing offscreen)
+            target_scroll_y = player.y - SCREEN_HEIGHT / 2 + player.height / 2
+            scroll_y += (target_scroll_y - scroll_y) * 0.1
             
             # Clamp scroll (Prevent seeing left of 0)
             if scroll_x < 0:
                 scroll_x = 0
+                
+            # Clamp vertical scroll (Optional, but good to keep ground in view)
+            # Map height is 2000. Screen height 720.
+            # Max scroll_y should be map_height - SCREEN_HEIGHT
+            # if scroll_y > map_height - SCREEN_HEIGHT: scroll_y = map_height - SCREEN_HEIGHT
+            if scroll_y < 0: scroll_y = 0
             
             camera_offset = (int(scroll_x), int(scroll_y))
             
@@ -289,8 +328,11 @@ def run():
                     if player.is_neutral_collision(platform):
                         if proj_rect.colliderect(platform.get_rect()):
                             hit = True
-                            # Spawn splat
-                            effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                            # Spawn splat (Backtrack slightly to appear ON surface, not IN it)
+                            # Simple approximation: Move back 1 step of velocity
+                            impact_x = proj.x - proj.vx
+                            impact_y = proj.y - proj.vy
+                            effects.append(SplatBlast(impact_x, impact_y, proj.color))
                             break
                 
                 if hit:
@@ -417,7 +459,7 @@ def run():
                 shake_y = int((random.random() - 0.5) * 2 * shake_amp)
             
             # Update Camera
-            camera.update(player)
+            # camera.update(player)
             
             # --- DRAW SEQUENCE ---
             
@@ -425,7 +467,15 @@ def run():
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
-                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects, background, spikes, camera, enemies, offset=camera_offset)
+                draw_game(next_state_capture, player.is_white, player, 
+                         platforms=platforms, 
+                         projectiles=projectiles, 
+                         effects=effects, 
+                         background=background, 
+                         spikes=spikes, 
+                         camera=camera, 
+                         enemies=enemies, 
+                         offset=camera_offset)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -450,7 +500,15 @@ def run():
                     transition_active = False
             else:
                 # Standard Draw
-                draw_game(canvas, player.is_white, player, platforms, projectiles, effects, background, spikes, camera, enemies, offset=camera_offset)
+                draw_game(canvas, player.is_white, player, 
+                         platforms=platforms, 
+                         projectiles=projectiles, 
+                         effects=effects, 
+                         background=background, 
+                         spikes=spikes, 
+                         camera=camera, 
+                         enemies=enemies, 
+                         offset=camera_offset)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake

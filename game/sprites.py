@@ -73,19 +73,26 @@ class Player:
             self.pos_history.pop(0)
 
         # Mouse Aiming Logic (Screen Space to World Space)
+        # Mouse Aiming Logic (Simplified to Screen Space)
         mx, my = pygame.mouse.get_pos()
-        # Mouse World Pos
-        m_world_x = mx + ox
-        m_world_y = my + oy
+        ox, oy = offset
         
-        cx = self.x + self.width / 2
-        cy = self.y + self.height / 2
+        # Player Centroid in Screen Space
+        # This matches exactly what is drawn on screen
+        screen_cx = (self.x - ox) + self.width / 2
+        screen_cy = (self.y - oy) + self.height / 2
         
-        # Calculate angle to mouse
-        self.aim_angle = math.atan2(m_world_y - cy, m_world_x - cx)
+        # Vector from Player to Mouse (Screen)
+        dx = mx - screen_cx
+        dy = my - screen_cy
         
-        # Update Facing based on aim
-        if m_world_x > cx:
+        dist_sq = dx*dx + dy*dy
+        # Only update aim if mouse is outside a small deadzone (prevents jitter)
+        if dist_sq > 400: # 20 pixels squared
+            self.aim_angle = math.atan2(dy, dx)
+        
+        # Update Facing based on aim (Screen relative)
+        if dx > 0:
             self.facing = 1
         else:
             self.facing = -1
@@ -185,8 +192,10 @@ class Player:
             draw_pos = camera.apply_point(self.x, self.y)
             draw_x, draw_y = draw_pos
         else:
-            draw_x, draw_y = self.x, self.y
-            
+            # FIX: Use manual offset if camera is not used
+            draw_x = self.x - ox
+            draw_y = self.y - oy
+        
         # Update center coordinates based on DRAW position
         cx = draw_x + self.width / 2
         cy = draw_y + self.height / 2
@@ -304,13 +313,21 @@ class Player:
         pygame.draw.line(screen, border_color, bp1, bp2, 2)
         
         # --- AIM RETICLE ---
-        if self.is_white:
-            aim_r = self.width * 1.0 # Radius from center
-            reticle_x = cx + math.cos(self.aim_angle) * aim_r
-            reticle_y = cy + math.sin(self.aim_angle) * aim_r
-            
-            reticle_color = BLACK_MATTE
-            pygame.draw.circle(screen, reticle_color, (int(reticle_x), int(reticle_y)), 3)
+        # --- AIM RETICLE ---
+        # Always draw reticle (needed since system cursor is hidden)
+        aim_r = self.width * 1.0 # Radius from center
+        reticle_x = cx + math.cos(self.aim_angle) * aim_r
+        reticle_y = cy + math.sin(self.aim_angle) * aim_r
+        
+        # Ground Clamp: Visual check to keep reticle above floor
+        # If we are strictly ON the ground, don't draw reticle below feet
+        if self.on_ground:
+             feet_level = draw_y + self.height
+             if reticle_y > feet_level:
+                 reticle_y = feet_level
+        
+        reticle_color = BLACK_MATTE if self.is_white else RED
+        pygame.draw.circle(screen, reticle_color, (int(reticle_x), int(reticle_y)), 3)
 
         # --- KATANA ---
         if self.is_white:
@@ -353,12 +370,16 @@ class Player:
                 pygame.draw.line(screen, sword_color, (cx, cy), (sword_x, sword_y), 4)
                 
             else:
-                # READY POSE
-                hand_x = cx + (20 * dir_x)
-                hand_y = shoulder_y + 15
+                # READY POSE (Wand-like aiming)
+                # Hand position orbits slightly to match aim side
+                hand_dist = 20
+                hand_x = cx + math.cos(self.aim_angle) * hand_dist * 0.5 
+                hand_y = shoulder_y + 15 + math.sin(self.aim_angle) * hand_dist * 0.5
                 
-                tip_x = hand_x + (30 * dir_x)
-                tip_y = hand_y + 10
+                # Sword Tip points towards aim
+                sword_len = 50
+                tip_x = hand_x + math.cos(self.aim_angle) * sword_len
+                tip_y = hand_y + math.sin(self.aim_angle) * sword_len
                 
                 sp1 = shiver_point(hand_x, hand_y, tension)
                 sp2 = shiver_point(tip_x, tip_y, tension)
@@ -379,9 +400,11 @@ class Player:
         cy = self.y + self.height / 2
         
         waves = []
-        for i in range(5):
-            # Spaced out sequence
-            dist = 40 - (i * 15) 
+        for i in range(8):
+            # Generate from the slash arc (approx radius 85)
+            # We stagger them slightly for a "thick" wave effect
+            # Dist 60 to 140 covers the slash area + forward motion
+            dist = 60 + (i * 12) 
             sx = cx + math.cos(self.aim_angle) * dist
             sy = cy + math.sin(self.aim_angle) * dist
             waves.append(SlashWave(sx, sy, self.aim_angle))
@@ -407,11 +430,25 @@ class Player:
         spawn_x = cx + math.cos(self.aim_angle) * aim_r
         spawn_y = cy + math.sin(self.aim_angle) * aim_r
         
-        speed = 15
-        vel_x = math.cos(self.aim_angle) * speed
-        vel_y = math.sin(self.aim_angle) * speed
+        # Ground Clamp: Enforce shooting AT the surface if aiming down
+        if self.on_ground:
+             feet_level = self.y + self.height
+             if spawn_y > feet_level:
+                 spawn_y = feet_level
+                 
+        # Recalculate velocity towards the modified spawn point (Target)
+        # This ensures the bullet goes where the reticle IS.
+        dx = spawn_x - cx
+        dy = spawn_y - cy
+        shoot_angle = math.atan2(dy, dx)
         
-        return Projectile(spawn_x, spawn_y, vel_x, vel_y, self.is_white)
+        speed = 15
+        vel_x = math.cos(shoot_angle) * speed
+        vel_y = math.sin(shoot_angle) * speed
+        
+        # Spawn at BODY CENTER (cx, cy), not at reticle position
+        # This prevents spawning inside the ground.
+        return Projectile(cx, cy, vel_x, vel_y, self.is_white)
 
 class Platform:
     def __init__(self, x, y, width, height, is_white=True, is_neutral=False):
@@ -580,7 +617,8 @@ class Platform:
         # Helper for camera apply
         def apply_pt(pt):
             if camera: return camera.apply_point(pt[0], pt[1])
-            return pt
+            # FIX: Apply manual offset
+            return (pt[0] - ox, pt[1] - oy)
             
         # 1. Define Visual Polygon (Top + Jagged Bottom)
         # Top-Left, Top-Right
@@ -658,7 +696,7 @@ class Spike:
         # Hitbox (smaller than visual)
         return pygame.Rect(self.x + 5, self.y + 10, self.width - 10, self.height - 10)
         
-    def draw(self, screen, is_white_mode, camera=None):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
         # Similar visibility rules to Platforms
         should_be_active = self.is_neutral or (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
         
@@ -671,6 +709,10 @@ class Spike:
         draw_pts = self.points
         if camera:
             draw_pts = [camera.apply_point(p[0], p[1]) for p in self.points]
+        else:
+            # FIX: Apply manual offset
+            ox, oy = offset
+            draw_pts = [(p[0] - ox, p[1] - oy) for p in self.points]
             
         pygame.draw.polygon(screen, color, draw_pts)
 
@@ -713,17 +755,17 @@ class Projectile:
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
     def draw(self, screen, camera=None, offset=(0,0)):
-        ox, oy = offset
-        # Draw a wobbly blob
+        # Generate points in WORLD SPACE first, then apply camera/offset
         num_points = 20
         points = []
-        cx, cy = self.x - ox, self.y - oy
+        
+        # Center in World Space
+        cx, cy = self.x, self.y
         
         for i in range(num_points):
             angle = (i / num_points) * 2 * math.pi
             
             # Wobble logic
-            # High frequency wobble for "active" liquid feel
             wobble = math.sin(angle * 5 + self.timer) * 3
             wobble += math.cos(angle * 3 - self.timer * 2) * 2
             
@@ -733,9 +775,12 @@ class Projectile:
             py = cy + math.sin(angle) * r
             points.append((px, py))
             
-        # Apply camera
+        # Apply transformation ONLY ONCE
         if camera:
             points = [camera.apply_point(p[0], p[1]) for p in points]
+        else:
+            ox, oy = offset
+            points = [(p[0] - ox, p[1] - oy) for p in points]
             
         pygame.draw.polygon(screen, self.color, points)
         
@@ -808,14 +853,15 @@ class SplatBlast:
             if p['size'] < 1:
                 continue
             
-            draw_x = (self.x - ox) + p['x']
-            draw_y = (self.y - oy) + p['y']
+            # World Space P
+            wx = self.x + p['x']
+            wy = self.y + p['y']
             
             if camera:
-                draw_x, draw_y = camera.apply_point(draw_x, draw_y)
-            
-            if camera:
-                draw_x, draw_y = camera.apply_point(draw_x, draw_y)
+                draw_x, draw_y = camera.apply_point(wx, wy)
+            else:
+                draw_x = wx - ox
+                draw_y = wy - oy
             
             # Draw circle or maybe a small polygon for jaggedness?
             # Circle is "fluid" enough
@@ -845,10 +891,10 @@ class SlashWave:
         # We model this as an arc of a circle centered BEHIND the wave front.
         radius = 60 
         
-        # Center of the imaginary circle
+        # Center of the imaginary circle (World Space)
         back_dist = radius
-        ccx = (self.x - ox) - math.cos(self.angle) * back_dist
-        ccy = (self.y - oy) - math.sin(self.angle) * back_dist
+        ccx = self.x - math.cos(self.angle) * back_dist
+        ccy = self.y - math.sin(self.angle) * back_dist
         
         # 2. Generate arc points
         points = []
@@ -882,6 +928,8 @@ class SlashWave:
         if len(points) > 1:
             if camera:
                 points = [camera.apply_point(p[0], p[1]) for p in points]
+            else:
+                points = [(p[0] - ox, p[1] - oy) for p in points]
                 
             pygame.draw.lines(screen, WHITE, False, points, 3)
 
