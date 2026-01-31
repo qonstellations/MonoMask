@@ -2,9 +2,8 @@ import pygame
 import sys
 import random
 from .settings import *
-from .sprites import Player, Platform, SplatBlast
-from .utils import draw_game, draw_distortion, CrumbleEffect
-from .background import ParallaxBackground
+from .sprites import Player, Platform, SplatBlast, Spike
+from .utils import draw_game, draw_distortion, CrumbleEffect, Camerafrom .background import ParallaxBackground
 
 def run():
     # Initialize Pygame
@@ -22,35 +21,59 @@ def run():
         # Create player (starts as WHITE character)
         player = Player(100, 100)
     
-        # Create platforms for "Level 1"
-        platforms = [
-            # 1. Start Zone (Safe)
-            Platform(50, 600, 200, 30, is_neutral=True),
-            
-            # 2. The "White" Path (Must be White)
-            Platform(300, 550, 150, 30, is_white=True),
-            
-            # 3. The "Black" Step (Must swap to Black)
-            Platform(500, 450, 150, 30, is_white=False),
-            
-            # 4. Mid-air Swap Challenge
-            Platform(700, 350, 150, 30, is_white=True),
-            
-            # 5. The "Neutral" Rest Stop
-            Platform(900, 250, 100, 30, is_neutral=True),
-            
-            # 6. Final Leap (Requires Black)
-            Platform(1100, 150, 150, 30, is_white=False),
-            
-            # 7. GOAL Platform (Neutral, high up)
-            Platform(900, 50, 300, 30, is_neutral=True),
+        # Fixed Level Layout (Based on Reference Image approximation)
+        # Sequence of platforms going Right and Up
+        
+        map_width = 3000
+        map_height = 2000
+        
+        # Base floor level reference (Screen Height is ~768 usually, but map is 2000)
+        # Let's keep action near the middle-bottom 
+        base_y = map_height - 300
+        
+        # FULL Reference Map Layout - Every platform from the image
+        # Map is wide (6000px) to capture the long horizontal flow
+        
+        map_width = 6000
+        map_height = 2000
+        base_y = map_height - 200
+        
+        platforms_data = [
+             {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
+             {'x': 700, 'y': base_y-100, 'w': 100, 'type': 'white'},
+             {'x': 900, 'y': base_y-200, 'w': 100, 'type': 'black'},
+             {'x': 1100, 'y': base_y-290, 'w': 1000, 'type': 'neutral'},
+             {'x': 2200, 'y': base_y-400, 'w': 200, 'type': 'white'},
+             {'x': 2400, 'y': base_y-500, 'w': 200, 'type': 'black'},
+             {'x': 2600, 'y': base_y-290, 'w': 200, 'type': 'black'},
         ]
+        
+        platforms = []
+        spikes = []
+        
+        # Player Start
+        player.x = 150
+        player.y = base_y - 100
+        
+        for p_data in platforms_data:
+            is_white = (p_data['type'] == 'white')
+            is_neutral = (p_data['type'] == 'neutral')
+            # If black, both are false
+            if p_data['type'] == 'black':
+                is_white = False
+                is_neutral = False
+                
+            plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral)
+            platforms.append(plat)
+            
+            # NO SPIKES GENERATED
+            
         
         projectiles = []
         effects = []
-        return player, platforms, projectiles, effects
+        return player, platforms, spikes, projectiles, effects
 
-    player, platforms, projectiles, effects = reset_game()
+    player, platforms, spikes, projectiles, effects = reset_game()
 
     # Main game loop
     running = True
@@ -64,9 +87,12 @@ def run():
     # Transition State
     transition_active = False
     transition_radius = 0
-    transition_speed = 40 # Fast
+    transition_speed = 80 # Very fast
     max_radius = int((SCREEN_WIDTH**2 + SCREEN_HEIGHT**2)**0.5) + 50
     transition_center = (0, 0)
+    
+    # Camera
+    camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
     
     # Surfaces
     canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Used for final compositing
@@ -84,7 +110,7 @@ def run():
                 if game_over:
                     if event.key == pygame.K_r:
                         # Restart
-                        player, platforms, projectiles, effects = reset_game()
+                        player, platforms, spikes, projectiles, effects = reset_game()
                         tension_duration = 0.0
                         overload_timer = 0.0
                         game_over = False
@@ -96,11 +122,15 @@ def run():
                             # START TRANSITION
                             transition_active = True
                             transition_radius = 0
-                            transition_center = getattr(player, 'get_rect', lambda: pygame.Rect(0,0,0,0))().center
+                            # Get player center in SCREEN coordinates (camera-adjusted)
+                            player_rect = player.get_rect()
+                            player_screen_x = player_rect.centerx + camera.camera.x
+                            player_screen_y = player_rect.centery + camera.camera.y
+                            transition_center = (int(player_screen_x), int(player_screen_y))
                             
                             # Capture OLD state (including distortion)
                             # Passing background=background to ensure consistent capture
-                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, background)
+                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, background, spikes, camera)
                             # Note: We capture with current intensity
                             intensity = min(1.0, tension_duration / 12.0)
                             draw_distortion(old_screen_capture, intensity)
@@ -184,6 +214,17 @@ def run():
                 eff.update()
                 if eff.timer > eff.lifetime:
                     effects.remove(eff)
+            
+            # Spike Logic
+            player_rect = player.get_rect()
+            for spike in spikes:
+                if player.is_neutral_collision(spike):
+                     spike_rect = spike.get_rect()
+                     if player_rect.colliderect(spike_rect):
+                         # Fatal collision
+                         game_over = True
+                         crumble_effect = CrumbleEffect(screen)
+                         break
 
             
             # Calculate Screen Shake
@@ -204,13 +245,16 @@ def run():
                 shake_x = int((random.random() - 0.5) * 2 * shake_amp)
                 shake_y = int((random.random() - 0.5) * 2 * shake_amp)
             
+            # Update Camera
+            camera.update(player)
+            
             # --- DRAW SEQUENCE ---
             
             if transition_active:
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
-                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects, background)
+                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects, background, spikes, camera)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -235,7 +279,7 @@ def run():
                     transition_active = False
             else:
                 # Standard Draw
-                draw_game(canvas, player.is_white, player, platforms, projectiles, effects, background)
+                draw_game(canvas, player.is_white, player, platforms, projectiles, effects, background, spikes, camera)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake
