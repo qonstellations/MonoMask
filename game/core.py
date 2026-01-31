@@ -48,8 +48,20 @@ def run():
              {'x': 4700, 'y': base_y-400, 'w': 150, 'type': 'neutral'},
              {'x': 4450, 'y': base_y-500, 'w': 150, 'type': 'black'},
              {'x': 4350, 'y': base_y-600, 'w': 150, 'type': 'white'},
-             {'x': 4450, 'y': base_y-700, 'w': 150, 'type': 'black'},
-             {'x': 4550, 'y': base_y-650, 'w': 150, 'type': 'black'},
+             {'x': 4550, 'y': base_y-700, 'w': 150, 'type': 'black'},
+             {'x': 4800, 'y': base_y-650, 'w': 120, 'type': 'black'},
+             {'x': 5100, 'y': base_y-600, 'w': 200, 'type': 'neutral'},
+             {'x': 5400, 'y': base_y-700, 'w': 50, 'type': 'black'},
+             {'x': 5600, 'y': base_y-800, 'w': 50, 'type': 'black'},
+             {'x': 5800, 'y': base_y-900, 'w': 50, 'type': 'black'},
+             {'x': 6000, 'y': base_y-1000, 'w': 100, 'type': 'white'},
+             {'x': 6200, 'y': base_y-700, 'w': 50, 'type': 'black'},
+             {'x': 6500, 'y': base_y-400, 'w': 50, 'type': 'black'},
+             {'x': 6700, 'y': base_y-200, 'w': 300, 'type': 'neutral'},
+             {'x': 7150, 'y': base_y-300, 'w': 200, 'type': 'white'},
+             {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
+             {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
+
         ]
         
         platforms = []
