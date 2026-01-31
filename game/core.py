@@ -20,7 +20,7 @@ def run():
     
     # Audio Paths & Objects
     try:
-        light_bg_sound = pygame.mixer.Sound("assets/light_audio_bg.mp3")
+        light_bg_sound = pygame.mixer.Sound("assets/light_audio_bg.wav")
         dark_bg_sound = pygame.mixer.Sound("assets/dark_audio_bg.wav")
     except Exception as e:
         print(f"Warning: Could not load BGM: {e}")
@@ -49,7 +49,7 @@ def run():
     
     # Target volumes
     TARGET_VOL_LIGHT_MAX = 0.5
-    TARGET_VOL_DARK_MAX = 0.7
+    TARGET_VOL_DARK_MAX = 0.4
     TARGET_VOL_DEATH_FACTOR = 0.4 / 0.7 # Scaling factor for death volume (approx 0.57)
     
     try:
@@ -62,7 +62,7 @@ def run():
     # Load Heartbeat Sound
     try:
         heartbeat_sound = pygame.mixer.Sound("assets/heartbeat.mp3")
-        heartbeat_sound.set_volume(1.0)
+        heartbeat_sound.set_volume(0.9)
     except:
         print("Warning: Could not load heartbeat sound")
         heartbeat_sound = None
@@ -74,7 +74,31 @@ def run():
     except:
         print("Warning: Could not load game_over.wav")
         game_over_sound = None
+
+    # Movement Audio State
+    step_timer = 0.0
+    step_interval = 0.5 # Slower steps (0.5s)
     
+    # Load Movement SFX
+    try:
+        light_step_sound = pygame.mixer.Sound("assets/light_step.wav")
+        light_step_sound.set_volume(0.5) # 50% intensity
+        
+        dark_step_sound = pygame.mixer.Sound("assets/dark_step.wav")
+        dark_step_sound.set_volume(0.5) # 50% intensity
+        
+        jump_sound = pygame.mixer.Sound("assets/jump.mp3")
+        jump_sound.set_volume(2.0)
+        
+        splat_sound = pygame.mixer.Sound("assets/splat.wav")
+        splat_sound.set_volume(0.6)
+        
+        waves_sound = pygame.mixer.Sound("assets/waves.mp3")
+        waves_sound.set_volume(0.6)
+    except Exception as e:
+        print(f"Warning: Could not load Movement/Attack SFX: {e}")
+        light_step_sound, dark_step_sound, jump_sound = None, None, None
+        splat_sound, waves_sound = None, None
     
     # Heartbeat state
     heartbeat_timer = 0.0
@@ -371,21 +395,23 @@ def run():
                             proj = player.shoot()
                             if proj:
                                 projectiles.append(proj)
+                                if splat_sound: splat_sound.play()
             
             # Shooting / Melee Input (Mouse: Left Click) - Only when not paused
             if event.type == pygame.MOUSEBUTTONDOWN and not paused:
-                print(f"CLICK EVENT: Button={event.button} IsWhite={player.is_white}")
                 if event.button == 1: # Left Click
                     if player.is_white:
                         # Peace Mode: Shoot
                         proj = player.shoot()
                         if proj:
                             projectiles.append(proj)
+                            if splat_sound: splat_sound.play()
                     else:
                         # Tension Mode: Melee
                         new_effects = player.melee_attack()
                         if new_effects:
                             effects.extend(new_effects)
+                            if waves_sound: waves_sound.play()
         
         if not paused:
             # --- Audio Crossfade Logic ---
@@ -557,6 +583,27 @@ def run():
                 
                 # Update player
                 player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
+                
+                # --- Movement Audio ---
+                # 1. Jump Sound
+                if player.just_jumped and jump_sound:
+                    jump_sound.play()
+                
+                # 2. Footsteps
+                if player.on_ground and abs(player.vel_x) > 0.5:
+                    step_timer -= dt
+                    if step_timer <= 0:
+                        step_timer = step_interval
+                        # Play step sound based on mode
+                        # Play step sound based on mode
+                        if player.is_white:
+                            if light_step_sound: light_step_sound.play()
+                        else:
+                            if dark_step_sound: dark_step_sound.play()
+                else:
+                    # Reset timer so steps start immediately when walking resumes
+                    # But give a tiny delay to avoid "landing step" unless we want landing sounds
+                    step_timer = 0.05
                 
                 # Check for void death - instant respawn
                 if player.fell_into_void:

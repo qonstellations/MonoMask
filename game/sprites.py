@@ -33,6 +33,9 @@ class Player:
         # Death State
         self.fell_into_void = False
         
+        # Audio Flags
+        self.just_jumped = False
+        
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
@@ -123,8 +126,10 @@ class Player:
             # self.facing = 1 # Overridden by mouse aim
         
         # Jump
+        self.just_jumped = False # Reset flag for external audio check
         if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
             self.vel_y = -self.jump_strength
+            self.just_jumped = True
         
         # Apply gravity (same in both modes for consistent jump height)
         current_gravity = self.gravity
@@ -179,6 +184,19 @@ class Player:
                     elif self.vel_y < 0:
                         self.y = platform_rect.bottom
                         self.vel_y = 0
+                        
+        # Stability Check: Look 2 pixels below to confirm ground
+        # (Prevents flickering on_ground state due to gravity cycles)
+        if not self.on_ground and self.vel_y >= 0:
+             self.y += 2
+             ground_check_rect = self.get_rect()
+             self.y -= 2
+             
+             for platform in platforms:
+                 if self.is_neutral_collision(platform):
+                     if ground_check_rect.colliderect(platform.get_rect()):
+                         self.on_ground = True
+                         break
         
         # Move boundaries check REMOVED for camera
         # if self.x < 0: self.x = 0
@@ -324,7 +342,6 @@ class Player:
         
         pygame.draw.line(screen, border_color, bp1, bp2, 2)
         
-        # --- AIM RETICLE ---
         # --- AIM RETICLE ---
         # Always draw reticle (needed since system cursor is hidden)
         aim_r = self.width * 1.0 # Radius from center
