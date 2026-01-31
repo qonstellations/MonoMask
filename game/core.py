@@ -18,25 +18,67 @@ def run():
     pygame.mouse.set_visible(False) # Hide system cursor, use in-game reticle
     clock = pygame.time.Clock()
     
-    # Load Peace Mode Music
+    # Audio Paths & Objects
     try:
-        pygame.mixer.music.load("assets/Drifting Memories.mp3")
-        pygame.mixer.music.set_volume(0.5)  # 50% volume
-        music_loaded = True
-    except:
-        print("Warning: Could not load peace mode music")
-        music_loaded = False
+        light_bg_sound = pygame.mixer.Sound("assets/light_audio_bg.mp3")
+        dark_bg_sound = pygame.mixer.Sound("assets/dark_audio_bg.wav")
+    except Exception as e:
+        print(f"Warning: Could not load BGM: {e}")
+        light_bg_sound = None
+        dark_bg_sound = None
+
+    # Reserve channels for BGM so SFX don't interrupt them
+    # Channel 0: Light Theme
+    # Channel 1: Dark Theme
+    pygame.mixer.set_reserved(2)
+    bg_chan_light = pygame.mixer.Channel(0)
+    bg_chan_dark = pygame.mixer.Channel(1)
     
-    # Load Mode Switch Sound Effect
+    # Start playing loops immediately at 0 volume
+    if light_bg_sound:
+        bg_chan_light.play(light_bg_sound, loops=-1)
+        bg_chan_light.set_volume(0)
+        
+    if dark_bg_sound:
+        bg_chan_dark.play(dark_bg_sound, loops=-1)
+        bg_chan_dark.set_volume(0)
+        
+    # Volume State for Crossfading
+    current_vol_light = 0.0
+    current_vol_dark = 0.0
+    
+    # Target volumes
+    TARGET_VOL_LIGHT_MAX = 0.5
+    TARGET_VOL_DARK_MAX = 0.7
+    TARGET_VOL_DEATH_FACTOR = 0.4 / 0.7 # Scaling factor for death volume (approx 0.57)
+    
     try:
         shadow_sound = pygame.mixer.Sound("assets/shadow.mp3")
-        shadow_sound.set_volume(0.7)  # 70% volume
+        shadow_sound.set_volume(1.0)  # Max volume for thrill
     except:
         print("Warning: Could not load shadow sound effect")
         shadow_sound = None
+        
+    # Load Heartbeat Sound
+    try:
+        heartbeat_sound = pygame.mixer.Sound("assets/heartbeat.mp3")
+        heartbeat_sound.set_volume(1.0)
+    except:
+        print("Warning: Could not load heartbeat sound")
+        heartbeat_sound = None
+        
+    # Load Game Over Sound
+    try:
+        game_over_sound = pygame.mixer.Sound("assets/game_over.wav")
+        game_over_sound.set_volume(0.8)
+    except:
+        print("Warning: Could not load game_over.wav")
+        game_over_sound = None
     
-    # Music state
-    music_playing = False
+    
+    # Heartbeat state
+    heartbeat_timer = 0.0
+    heartbeat_interval = 1.0 # Starts slow
     
     # Initialize Background
     background = ParallaxBackground()
@@ -332,6 +374,7 @@ def run():
             
             # Shooting / Melee Input (Mouse: Left Click) - Only when not paused
             if event.type == pygame.MOUSEBUTTONDOWN and not paused:
+                print(f"CLICK EVENT: Button={event.button} IsWhite={player.is_white}")
                 if event.button == 1: # Left Click
                     if player.is_white:
                         # Peace Mode: Shoot
@@ -344,6 +387,63 @@ def run():
                         if new_effects:
                             effects.extend(new_effects)
         
+        if not paused:
+            # --- Audio Crossfade Logic ---
+            # Determine target volumes based on state
+            target_light = 0.0
+            target_dark = 0.0
+            
+            if player.is_white:
+                target_light = TARGET_VOL_LIGHT_MAX
+                target_dark = 0.0
+            else:
+                target_light = 0.0
+                target_dark = TARGET_VOL_DARK_MAX
+                
+                # One-shot transition sound
+                # We detect state change by checking if we are moving TO dark from light (i.e. if dark volume is low)
+                if current_vol_dark < 0.1 and target_dark > 0.1:
+                     # Playing shadow sound only once per switch
+                     if shadow_sound and active_music_mode != "DARK":
+                         shadow_sound.play()
+                         active_music_mode = "DARK" # Reuse this var just for trigger tracking
+            
+            if player.is_white:
+                active_music_mode = "LIGHT"
+            
+            # Game Over Dimming
+            if game_over:
+                # Fade to silence
+                target_light = 0.0
+                target_dark = 0.0
+            
+            # Lerp volumes (Smooth transition)
+            if game_over:
+                # Fade to 0 over 2.5s (from max 0.7)
+                # Speed = 0.7 / 2.5 = 0.28
+                fade_speed = 0.28 * dt
+            else:
+                # Standard fast switch (approx 0.6s)
+                fade_speed = 1.5 * dt 
+            
+            # Move light volume
+            if current_vol_light < target_light:
+                current_vol_light = min(target_light, current_vol_light + fade_speed)
+            elif current_vol_light > target_light:
+                current_vol_light = max(target_light, current_vol_light - fade_speed)
+                
+            # Move dark volume
+            if current_vol_dark < target_dark:
+                current_vol_dark = min(target_dark, current_vol_dark + fade_speed)
+            elif current_vol_dark > target_dark:
+                current_vol_dark = max(target_dark, current_vol_dark - fade_speed)
+            
+            # Apply volumes
+            if bg_chan_light:
+                bg_chan_light.set_volume(current_vol_light)
+            if bg_chan_dark:
+                bg_chan_dark.set_volume(current_vol_dark)
+
         if not game_over:
             # Calculate values needed for drawing even when paused
             intensity = min(1.0, tension_duration / 12.0)
@@ -357,21 +457,7 @@ def run():
                 # Update Background Parallax
                 background.update(player.vel_x)
                 
-                # Music Control - Play only in Peace Mode
-                if music_loaded:
-                    if player.is_white:
-                        # Check if music should be playing but stopped
-                        if not pygame.mixer.music.get_busy():
-                            # Start/restart peace music (loop infinitely)
-                            pygame.mixer.music.play(-1)
-                            music_playing = True
-                    elif music_playing:
-                        # Fade out music when entering tension mode
-                        pygame.mixer.music.fadeout(500)  # 500ms fade
-                        music_playing = False
-                        # Play shadow sound effect as mode switch indicator
-                        if shadow_sound:
-                            shadow_sound.play()
+
 
                 # Tension Logic based on state
                 active_ronins = 0
@@ -403,6 +489,22 @@ def run():
                 # Recalculate Intensity after update
                 intensity = min(1.0, tension_duration / 12.0)
                 
+                # --- Dynamic Heartbeat Logic ---
+                if not player.is_white and heartbeat_sound:
+                    # Calculate interval based on tension
+                    # Range: Tension 0.0 -> ~1.2s
+                    #        Tension 12.0 -> ~0.25s (Fast Panic)
+                    normalized_tension = min(1.0, tension_duration / 12.0)
+                    heartbeat_interval = 1.2 - (normalized_tension * 0.95)
+                    
+                    heartbeat_timer -= dt
+                    if heartbeat_timer <= 0:
+                        heartbeat_sound.play()
+                        heartbeat_timer = heartbeat_interval
+                else:
+                    # Reset timer so it starts immediately when switching to dark mode
+                    heartbeat_timer = 0.0
+                
                 # Forced Switch Logic (Trigger at 8.0 Tension)
                 if player.is_white and tension_duration >= 8.0:
                      if not transition_active:
@@ -429,6 +531,9 @@ def run():
                 if tension_duration >= 12.0 and not player.is_white:
                     overload_timer += dt
                     if overload_timer > 3.0:
+                        if game_over_sound:
+                            game_over_sound.play()
+                        pygame.mixer.music.set_volume(0.4) # Fade background to 40% on death
                         game_over = True
                 else:
                     overload_timer = 0.0
@@ -515,6 +620,9 @@ def run():
                     if player.is_neutral_collision(spike):
                          spike_rect = spike.get_rect()
                          if player_rect.colliderect(spike_rect):
+                             if game_over_sound:
+                                 game_over_sound.play()
+                             pygame.mixer.music.set_volume(0.4) # Fade background to 40% on death
                              game_over = True
                              crumble_effect = CrumbleEffect(screen)
                              break
