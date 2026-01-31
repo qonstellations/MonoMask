@@ -965,3 +965,71 @@ class SlashWave:
         slash_rect = pygame.Rect(self.x - 15, self.y - 15, 30, 30)  # Smaller hitbox
         return slash_rect.colliderect(rect)
 
+
+class Portal:
+    """Black hole portal for level transitions"""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.radius = 60
+        self.rotation = 0
+        self.pulse_timer = 0
+        self.active = True
+        
+    def get_rect(self):
+        return pygame.Rect(self.x - 30, self.y - 30, 60, 60)
+    
+    def update(self):
+        self.rotation += 0.05
+        self.pulse_timer += 0.1
+        
+    def check_collision(self, player_rect):
+        return self.active and self.get_rect().colliderect(player_rect)
+    
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+        ox, oy = offset
+        cx = self.x - ox
+        cy = self.y - oy
+        
+        # Pulsing effect
+        pulse = 1.0 + math.sin(self.pulse_timer) * 0.15
+        
+        # Outer glow rings (swirling)
+        for i in range(5):
+            ring_radius = int((self.radius + 20 - i * 8) * pulse)
+            alpha = 150 - i * 25
+            
+            # Calculate ring points with rotation
+            points = []
+            num_pts = 32
+            for j in range(num_pts):
+                angle = (j / num_pts) * 2 * math.pi + self.rotation * (i + 1) * 0.3
+                # Spiral distortion
+                distort = math.sin(angle * 4 + self.pulse_timer) * 5
+                r = ring_radius + distort
+                px = cx + math.cos(angle) * r
+                py = cy + math.sin(angle) * r
+                points.append((px, py))
+            
+            # Draw ring
+            if len(points) > 2:
+                color = (40, 0, 60) if is_white_mode else (100, 50, 150)
+                pygame.draw.polygon(screen, color, points, 2)
+        
+        # Core (solid black center)
+        core_radius = int(25 * pulse)
+        pygame.draw.circle(screen, (0, 0, 0), (int(cx), int(cy)), core_radius)
+        
+        # Inner swirl lines
+        for i in range(6):
+            angle = self.rotation * 2 + (i / 6) * 2 * math.pi
+            inner_r = 10
+            outer_r = core_radius - 3
+            x1 = cx + math.cos(angle) * inner_r
+            y1 = cy + math.sin(angle) * inner_r
+            x2 = cx + math.cos(angle + 0.5) * outer_r
+            y2 = cy + math.sin(angle + 0.5) * outer_r
+            pygame.draw.line(screen, (80, 40, 100), (x1, y1), (x2, y2), 2)
+        
+        # Center highlight
+        pygame.draw.circle(screen, (60, 30, 80), (int(cx), int(cy)), 8)

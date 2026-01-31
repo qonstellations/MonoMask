@@ -39,7 +39,7 @@ class Camera:
 
 # Helper function to draw the game state
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0)):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0), portal=None):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -66,6 +66,10 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     if enemies:
         for enemy in enemies:
             enemy.draw(surface, is_white_mode, camera=camera, offset=offset)
+    
+    # Draw portal (blackhole)
+    if portal:
+        portal.draw(surface, is_white_mode, camera=camera, offset=offset)
 
     # Draw spikes
     if spikes:
@@ -89,25 +93,21 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     player.draw(surface, camera=camera, offset=offset)
 
     
-    # Draw UI (Fixed on screen, NO OFFSET)
+    # Draw UI (Fixed on screen, NO OFFSET) - Top Right
     font = pygame.font.Font(None, 36)
     # Text color inverse of background
     text_color = BLACK if is_white_mode else WHITE
     
+    sw = surface.get_width()
+    
     mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
     text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
-    surface.blit(text, (10, 10))
-    
-    # Optional: Visual warning for drain
-    # Can't access logic state here easily without passing it, but good enough for now.
+    text_rect = text.get_rect(topright=(sw - 10, 40))
+    surface.blit(text, text_rect)
     
     info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
-    surface.blit(info_text, (10, 50))
-
-    # Goal Text
-    goal_font = pygame.font.Font(None, 50)
-    goal_text = goal_font.render("GOAL ->", True, GRAY)
-    surface.blit(goal_text, (950, 10))
+    info_rect = info_text.get_rect(topright=(sw - 10, 70))
+    surface.blit(info_text, info_rect)
 
 def draw_distortion(surface, intensity):
     """Draws tension distortion (noise/rects) based on intensity (0.0 to 1.0)"""

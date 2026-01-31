@@ -2,7 +2,7 @@ import pygame
 import sys
 import random
 from .settings import *
-from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave
+from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave, Portal
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin
@@ -44,7 +44,7 @@ def run():
     # Camera object (optional, currently using manual offset)
     camera = None
 
-    def reset_game():
+    def reset_game(level="TUTORIAL"):
         # Create player (starts as WHITE character)
         player = Player(100, 100)
     
@@ -55,35 +55,103 @@ def run():
         map_height = 2000
         base_y = map_height - 200
         
-        platforms_data = [
-              # Tutorial platforms data 
-             {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
-             {'x': 700, 'y': base_y-100, 'w': 100, 'type': 'white'},
-             {'x': 900, 'y': base_y-200, 'w': 100, 'type': 'black'},
-             {'x': 1100, 'y': base_y-290, 'w': 1000, 'type': 'neutral'},
-             {'x': 2200, 'y': base_y-400, 'w': 200, 'type': 'white'},
-             {'x': 2400, 'y': base_y-500, 'w': 200, 'type': 'black'},
-             {'x': 2600, 'y': base_y-290, 'w': 200, 'type': 'black'},
-             {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'},
-             {'x': 4500, 'y': base_y-300, 'w': 150, 'type': 'black'},
-             {'x': 4700, 'y': base_y-400, 'w': 150, 'type': 'neutral'},
-             {'x': 4450, 'y': base_y-500, 'w': 150, 'type': 'black'},
-             {'x': 4350, 'y': base_y-600, 'w': 150, 'type': 'white'},
-             {'x': 4550, 'y': base_y-700, 'w': 150, 'type': 'black'},
-             {'x': 4800, 'y': base_y-650, 'w': 120, 'type': 'black'},
-             {'x': 5100, 'y': base_y-600, 'w': 200, 'type': 'neutral'},
-             {'x': 5400, 'y': base_y-700, 'w': 50, 'type': 'black'},
-             {'x': 5600, 'y': base_y-800, 'w': 50, 'type': 'black'},
-             {'x': 5800, 'y': base_y-900, 'w': 50, 'type': 'black'},
-             {'x': 6000, 'y': base_y-1000, 'w': 100, 'type': 'white'},
-             {'x': 6200, 'y': base_y-700, 'w': 50, 'type': 'black'},
-             {'x': 6500, 'y': base_y-400, 'w': 50, 'type': 'black'},
-             {'x': 6700, 'y': base_y-200, 'w': 300, 'type': 'neutral'},
-             {'x': 7150, 'y': base_y-300, 'w': 200, 'type': 'white'},
-             {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
-             {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
-
-        ]
+        # Define level data based on current level
+        if level == "TUTORIAL":
+            platforms_data = [
+                # ========== SECTION 1: BASICS (Learning to move) ==========
+                # Starting area - large, safe
+                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+                # Easy first jump (small gap, same height)
+                {'x': 500, 'y': base_y-100, 'w': 290, 'type': 'neutral'},
+                # Second easy jump
+                {'x': 890, 'y': base_y-180, 'w': 150, 'type': 'neutral'},
+                # Gentle rise (short gap, slight height)
+                {'x': 1200, 'y': base_y-50, 'w': 500, 'type': 'neutral'},
+                
+                # ========== SECTION 2: INTRODUCE WHITE PLATFORMS ==========
+                # Safe landing before white intro
+                {'x': 1800, 'y': base_y-120, 'w': 350, 'type': 'neutral'},
+                # First white platform (easy jump)
+                {'x': 2200, 'y': base_y-80, 'w': 250, 'type': 'white'},
+                # Second white platform (practice)
+                {'x': 2550, 'y': base_y-20, 'w': 250, 'type': 'white'},
+                # Back to neutral for breathing room
+                {'x': 2900, 'y': base_y-50, 'w': 400, 'type': 'neutral'},
+                
+                # ========== SECTION 3: INTRODUCE BLACK PLATFORMS ==========
+                # Black platform intro
+                {'x': 3400, 'y': base_y-100, 'w': 150, 'type': 'black'},
+                # Second black platform
+                {'x': 3650, 'y': base_y-130, 'w': 150, 'type': 'black'},
+                # Neutral rest area
+                {'x': 3900, 'y': base_y-50, 'w': 450, 'type': 'neutral'},
+                
+                # ========== SECTION 4: MIXED PLATFORMING ==========
+                # Alternating white and black
+                {'x': 4420, 'y': base_y-150, 'w': 80, 'type': 'white'},
+                {'x': 4150, 'y': base_y-280, 'w': 200, 'type': 'black'},
+                {'x': 4450, 'y': base_y-400, 'w': 250, 'type': 'white'},
+                # Large neutral landing
+                {'x': 4800, 'y': base_y-100, 'w': 600, 'type': 'neutral'},
+                
+                # ========== SECTION 5: MODERATE CHALLENGE ==========
+                # Rising platforms with gaps
+                {'x': 5500, 'y': base_y-200, 'w': 150, 'type': 'neutral'},
+                {'x': 5750, 'y': base_y-280, 'w': 150, 'type': 'white'},
+                {'x': 6000, 'y': base_y-360, 'w': 150, 'type': 'black'},
+                {'x': 6250, 'y': base_y-440, 'w': 150, 'type': 'neutral'},
+                # Descending back down
+                {'x': 6500, 'y': base_y-350, 'w': 150, 'type': 'white'},
+                {'x': 6750, 'y': base_y-260, 'w': 150, 'type': 'black'},
+                {'x': 7000, 'y': base_y-170, 'w': 200, 'type': 'neutral'},
+                
+                # ========== SECTION 6: LONGER JUMPS ==========
+                # Bigger gaps requiring commitment
+                {'x': 7400, 'y': base_y-150, 'w': 250, 'type': 'neutral'},
+                {'x': 7700, 'y': base_y-200, 'w': 220, 'type': 'white'},
+                {'x': 8000, 'y': base_y-250, 'w': 200, 'type': 'black'},
+                {'x': 8300, 'y': base_y-200, 'w': 350, 'type': 'neutral'},
+                
+                # ========== SECTION 7: FINAL APPROACH ==========
+                # Staircase up to the portal
+                {'x': 8750, 'y': base_y-250, 'w': 250, 'type': 'white'},
+                {'x': 9050, 'y': base_y-320, 'w': 250, 'type': 'black'},
+                {'x': 9350, 'y': base_y-390, 'w': 250, 'type': 'white'},
+                {'x': 9650, 'y': base_y-460, 'w': 250, 'type': 'black'},
+                
+                # ========== PORTAL AREA ==========
+                # Final safe zone with portal
+                {'x': 9950, 'y': base_y-460, 'w': 700, 'type': 'neutral'},
+            ]
+        else:  # LEVEL_1
+            platforms_data = [
+                # Level 1 - The original harder level
+                {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
+                {'x': 700, 'y': base_y-100, 'w': 100, 'type': 'white'},
+                {'x': 900, 'y': base_y-200, 'w': 100, 'type': 'black'},
+                {'x': 1100, 'y': base_y-290, 'w': 1000, 'type': 'neutral'},
+                {'x': 2200, 'y': base_y-400, 'w': 200, 'type': 'white'},
+                {'x': 2400, 'y': base_y-500, 'w': 200, 'type': 'black'},
+                {'x': 2600, 'y': base_y-290, 'w': 200, 'type': 'black'},
+                {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'},
+                {'x': 4500, 'y': base_y-300, 'w': 150, 'type': 'black'},
+                {'x': 4700, 'y': base_y-400, 'w': 150, 'type': 'neutral'},
+                {'x': 4450, 'y': base_y-500, 'w': 150, 'type': 'black'},
+                {'x': 4350, 'y': base_y-600, 'w': 150, 'type': 'white'},
+                {'x': 4550, 'y': base_y-700, 'w': 150, 'type': 'black'},
+                {'x': 4800, 'y': base_y-650, 'w': 120, 'type': 'black'},
+                {'x': 5100, 'y': base_y-600, 'w': 200, 'type': 'neutral'},
+                {'x': 5400, 'y': base_y-700, 'w': 50, 'type': 'black'},
+                {'x': 5600, 'y': base_y-800, 'w': 50, 'type': 'black'},
+                {'x': 5800, 'y': base_y-900, 'w': 50, 'type': 'black'},
+                {'x': 6000, 'y': base_y-1000, 'w': 100, 'type': 'white'},
+                {'x': 6200, 'y': base_y-700, 'w': 50, 'type': 'black'},
+                {'x': 6500, 'y': base_y-400, 'w': 50, 'type': 'black'},
+                {'x': 6700, 'y': base_y-200, 'w': 300, 'type': 'neutral'},
+                {'x': 7150, 'y': base_y-300, 'w': 200, 'type': 'white'},
+                {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
+                {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
+            ]
         
         platforms = []
         spikes = []
@@ -103,39 +171,55 @@ def run():
             plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral)
             platforms.append(plat)
             
-            # NO SPIKES GENERATED
-            
+        # Portal for tutorial level (at end of last platform)
+        portal = None
+        if level == "TUTORIAL":
+            last_plat = platforms_data[-1]
+            portal_x = last_plat['x'] + last_plat['w'] - 80  # Near end of last platform
+            portal_y = last_plat['y'] - 60  # Above platform
+            portal = Portal(portal_x, portal_y)
+        
         # Spawn Enemies
-        # Helper function to spawn based on level data
-        def spawn_enemies_for_level(plat_data):
-            spawned = []
-            if not plat_data:
-                return spawned
-                
-            # User Request: Spawn on the LAST platform by default
-            last_plat = plat_data[-1]
+        enemies = []
+        if level == "TUTORIAL":
+            # Spawn enemy on the last platform of tutorial
+            last_plat = platforms_data[-1]
+            enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
+            enemy_y = last_plat['y'] - 60
+            enemies = [MirrorRonin(enemy_x, enemy_y)]
+        elif level == "LEVEL_1":
+            # Spawn enemy on the last platform
+            last_plat = platforms_data[-1]
+            enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
+            enemy_y = last_plat['y'] - 60
             
-            # center x of platform
-            spawn_x = last_plat['x'] + last_plat['w'] // 2 - 25 # -25 for half enemy width
-            spawn_y = last_plat['y'] - 60 # Above platform
+            # Spawn enemy on the big middle platform (index 7)
+            middle_plat = platforms_data[7]
+            middle_enemy_x = middle_plat['x'] + middle_plat['w'] // 2 - 25
+            middle_enemy_y = middle_plat['y'] - 60
             
-        # Spawn enemy on the last platform
-        last_plat = platforms_data[-1]
-        enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25  # Center of platform
-        enemy_y = last_plat['y'] - 60  # Above platform
-        
-        # Spawn enemy on the big middle platform (index 7 - the 1500-wide neutral)
-        middle_plat = platforms_data[7]  # {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'}
-        middle_enemy_x = middle_plat['x'] + middle_plat['w'] // 2 - 25
-        middle_enemy_y = middle_plat['y'] - 60
-        
-        enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
+            enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
         
         projectiles = []
         effects = []
-        return player, platforms, spikes, projectiles, effects, enemies
+        return player, platforms, spikes, projectiles, effects, enemies, portal
 
-    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+    # Level State
+    current_level = "TUTORIAL"
+    player, platforms, spikes, projectiles, effects, enemies, portal = reset_game(current_level)
+    
+    # Loading Screen State
+    loading_screen_active = False
+    loading_timer = 0.0
+    loading_spinner_angle = 0.0
+    next_level = None
+    
+    # Blackhole Suction Animation State
+    blackhole_suction_active = False
+    blackhole_suction_timer = 0.0
+    blackhole_suction_duration = 2.0  # 2 seconds of suction animation
+    blackhole_player_scale = 1.0  # Player shrinks during suction
+    blackhole_player_rotation = 0.0  # Player spins into blackhole
 
     # Main game loop
     running = True
@@ -197,7 +281,7 @@ def run():
                 if game_over:
                     if event.key == pygame.K_r:
                         # Restart
-                        player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                        player, platforms, spikes, projectiles, effects, enemies, portal = reset_game(current_level)
                         tension_duration = 0.0
                         overload_timer = 0.0
                         forced_black_mode_timer = 0.0
@@ -205,8 +289,8 @@ def run():
                         scroll_y = 0
                         game_over = False
                         crumble_effect = None
-                        crumble_effect = None
                         transition_active = False
+                        blackhole_suction_active = False
                 else:
                     # ESC Key - Toggle Pause Menu
                     # ESC Key - Toggle Pause Menu
@@ -236,7 +320,7 @@ def run():
                                 if selected_option == "Continue":
                                     paused = False
                                 elif selected_option == "Restart":
-                                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                                    player, platforms, spikes, projectiles, effects, enemies, portal = reset_game(current_level)
                                     tension_duration = 0.0
                                     overload_timer = 0.0
                                     forced_black_mode_timer = 0.0
@@ -245,6 +329,7 @@ def run():
                                     game_over = False
                                     crumble_effect = None
                                     transition_active = False
+                                    blackhole_suction_active = False
                                     paused = False
                                 elif selected_option == "Options":
                                     menu_state = "OPTIONS"
@@ -310,7 +395,8 @@ def run():
                                          spikes=spikes, 
                                          camera=camera, 
                                          enemies=enemies, 
-                                         offset=camera_offset)
+                                         offset=camera_offset,
+                                         portal=portal)
                                 # Note: We capture with current intensity
                                 intensity = min(1.0, tension_duration / 12.0)
                                 draw_distortion(old_screen_capture, intensity)
@@ -343,6 +429,91 @@ def run():
                         new_effects = player.melee_attack()
                         if new_effects:
                             effects.extend(new_effects)
+        
+        # ========== LOADING SCREEN HANDLING ==========
+        if loading_screen_active:
+            loading_timer += dt
+            loading_spinner_angle += dt * 5  # Spin the symbol
+            
+            # Loading screen duration
+            loading_duration = 3.0  # 3 seconds
+            
+            # Draw loading screen
+            screen.fill((0, 0, 0))  # Black background
+            
+            sw, sh = screen.get_size()
+            
+            # "LEVEL 1" text at top
+            level_font = pygame.font.Font(None, 120)
+            level_text = level_font.render("LEVEL 1", True, (255, 255, 255))
+            level_rect = level_text.get_rect(center=(sw // 2, sh // 4))
+            screen.blit(level_text, level_rect)
+            
+            # Subtitle
+            sub_font = pygame.font.Font(None, 40)
+            sub_text = sub_font.render("The Journey Begins", True, (150, 150, 150))
+            sub_rect = sub_text.get_rect(center=(sw // 2, sh // 4 + 60))
+            screen.blit(sub_text, sub_rect)
+            
+            # Spinning Yin-Yang style symbol
+            import math as m
+            cx, cy = sw // 2, sh // 2 + 50
+            radius = 60
+            
+            # Draw rotating symbol (white and black halves)
+            for i in range(32):
+                angle = (i / 32) * 2 * m.pi + loading_spinner_angle
+                next_angle = ((i + 1) / 32) * 2 * m.pi + loading_spinner_angle
+                
+                # Alternate colors
+                color = (255, 255, 255) if i < 16 else (100, 100, 100)
+                
+                # Triangle from center to edge
+                x1 = cx + m.cos(angle) * radius
+                y1 = cy + m.sin(angle) * radius
+                x2 = cx + m.cos(next_angle) * radius
+                y2 = cy + m.sin(next_angle) * radius
+                
+                pygame.draw.polygon(screen, color, [(cx, cy), (x1, y1), (x2, y2)])
+            
+            # Inner circle
+            pygame.draw.circle(screen, (30, 30, 30), (cx, cy), 20)
+            
+            # Loading bar
+            bar_width = 400
+            bar_height = 10
+            bar_x = sw // 2 - bar_width // 2
+            bar_y = sh * 3 // 4
+            
+            # Background bar
+            pygame.draw.rect(screen, (50, 50, 50), (bar_x, bar_y, bar_width, bar_height))
+            
+            # Progress bar
+            progress = min(1.0, loading_timer / loading_duration)
+            pygame.draw.rect(screen, (255, 255, 255), (bar_x, bar_y, int(bar_width * progress), bar_height))
+            
+            # "Loading..." text
+            load_font = pygame.font.Font(None, 30)
+            load_text = load_font.render("Loading...", True, (200, 200, 200))
+            load_rect = load_text.get_rect(center=(sw // 2, bar_y + 40))
+            screen.blit(load_text, load_rect)
+            
+            pygame.display.flip()
+            
+            # Transition to next level after loading
+            if loading_timer >= loading_duration:
+                loading_screen_active = False
+                current_level = next_level
+                player, platforms, spikes, projectiles, effects, enemies, portal = reset_game(current_level)
+                tension_duration = 0.0
+                overload_timer = 0.0
+                forced_black_mode_timer = 0.0
+                scroll_x = 0
+                scroll_y = 0
+                transition_active = False
+                blackhole_suction_active = False
+            
+            continue  # Skip normal game loop during loading
         
         if not game_over:
             # Calculate values needed for drawing even when paused
@@ -418,7 +589,8 @@ def run():
                                   spikes=spikes,
                                   camera=camera,
                                   enemies=enemies, 
-                                  offset=camera_offset)
+                                  offset=camera_offset,
+                                  portal=portal)
                          draw_distortion(old_screen_capture, intensity)
                          
                          player.swap_mask()
@@ -455,14 +627,55 @@ def run():
                 
                 # Check for void death - instant respawn
                 if player.fell_into_void:
-                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                    player, platforms, spikes, projectiles, effects, enemies, portal = reset_game(current_level)
                     tension_duration = 0.0
                     overload_timer = 0.0
                     forced_black_mode_timer = 0.0
                     scroll_x = 0
                     scroll_y = 0
                     transition_active = False
+                    blackhole_suction_active = False
                     continue  # Skip rest of update this frame
+                
+                # Portal Update and Collision (Tutorial Level only)
+                if portal and not blackhole_suction_active and not loading_screen_active:
+                    portal.update()
+                    
+                    # Check collision
+                    if portal.check_collision(player.get_rect()):
+                        # Start blackhole suction animation
+                        blackhole_suction_active = True
+                        blackhole_suction_timer = 0.0
+                        blackhole_player_scale = 1.0
+                        blackhole_player_rotation = 0.0
+                        next_level = "LEVEL_1"
+                
+                # Blackhole Suction Animation Logic
+                if blackhole_suction_active:
+                    blackhole_suction_timer += dt
+                    
+                    # Progress from 0 to 1
+                    progress = blackhole_suction_timer / blackhole_suction_duration
+                    
+                    # Player shrinks and spins
+                    blackhole_player_scale = max(0.0, 1.0 - progress)
+                    blackhole_player_rotation += dt * 15  # Spin faster and faster
+                    
+                    # Move player towards portal center
+                    if portal:
+                        pull_strength = 200 * dt * (1 + progress)  # Accelerating pull
+                        dx = portal.x - (player.x + player.width / 2)
+                        dy = portal.y - (player.y + player.height / 2)
+                        dist = max(1, (dx*dx + dy*dy)**0.5)
+                        player.x += (dx / dist) * pull_strength
+                        player.y += (dy / dist) * pull_strength
+                    
+                    # End suction, start loading screen
+                    if blackhole_suction_timer >= blackhole_suction_duration:
+                        blackhole_suction_active = False
+                        loading_screen_active = True
+                        loading_timer = 0.0
+                        loading_spinner_angle = 0.0
                 
                 # Projectile Logic
                 for proj in projectiles[:]:
@@ -596,7 +809,8 @@ def run():
                          spikes=spikes, 
                          camera=camera, 
                          enemies=enemies, 
-                         offset=camera_offset)
+                         offset=camera_offset,
+                         portal=portal)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -630,7 +844,8 @@ def run():
                          spikes=spikes, 
                          camera=camera, 
                          enemies=enemies, 
-                         offset=camera_offset)
+                         offset=camera_offset,
+                         portal=portal)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake
@@ -649,18 +864,106 @@ def run():
             fps_rect = fps_text.get_rect(topright=(screen.get_width() - 10, 10))
             screen.blit(fps_text, fps_rect)
             
-            # DEBUG HUD
+            # DEBUG HUD - Top Right (below mode info)
             debug_font = pygame.font.Font(None, 24)
             d_stat = locals().get('drain_status', 'N/A')
             dbg_str = f"Tension: {tension_duration:.2f} | Active: {locals().get('active_ronins', '?')} | Status: {d_stat} | Global: {len(enemies)}"
             dbg_text = debug_font.render(dbg_str, True, (0, 255, 0) if not player.is_white else (255, 0, 0))
-            screen.blit(dbg_text, (10, 80))
+            dbg_rect = dbg_text.get_rect(topright=(screen.get_width() - 10, 100))
+            screen.blit(dbg_text, dbg_rect)
             
             # UI Overlays (Forced Mode Warning)
             if forced_black_mode_timer > 0:
                  f_font = pygame.font.Font(None, 40)
                  alert = f_font.render(f"LOCKED IN RAGE: {forced_black_mode_timer:.1f}s", True, WHITE)
                  screen.blit(alert, (SCREEN_WIDTH//2 - 150, 100))
+            
+            # Tutorial Hint Text (only at start of tutorial level) - Top Left
+            # Styled key legend like reference image
+            if current_level == "TUTORIAL" and player.x < 500:
+                key_font = pygame.font.Font(None, 26)
+                label_font = pygame.font.Font(None, 26)
+                
+                # Controls to show
+                controls = [
+                    ("A/D", "Move Left / Right"),
+                    ("SPACE", "Jump"),
+                ]
+                
+                # Draw each control row (no background panel)
+                for i, (key, label) in enumerate(controls):
+                    y_pos = 15 + i * 35
+                    
+                    # Key box (dark gray rounded rectangle)
+                    key_text_surf = key_font.render(key, True, (255, 255, 255))
+                    key_width = key_text_surf.get_width() + 16
+                    key_height = 26
+                    key_rect = pygame.Rect(15, y_pos, key_width, key_height)
+                    
+                    # Draw rounded key box
+                    pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
+                    pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                    
+                    # Key text centered (white)
+                    screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                    
+                    # Label text (gray)
+                    label_surf = label_font.render(label, True, (150, 150, 150))
+                    screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+            
+            # Tutorial Hint for Mask ON/OFF at platform x=2900
+            if current_level == "TUTORIAL" and 2900 <= player.x <= 3300:
+                key_font = pygame.font.Font(None, 26)
+                label_font = pygame.font.Font(None, 26)
+                
+                # Draw single control hint
+                key = "SHIFT / E"
+                label = "Mask ON/OFF"
+                y_pos = 15
+                
+                # Key box (dark gray rounded rectangle)
+                key_text_surf = key_font.render(key, True, (255, 255, 255))
+                key_width = key_text_surf.get_width() + 16
+                key_height = 26
+                key_rect = pygame.Rect(15, y_pos, key_width, key_height)
+                
+                # Draw rounded key box
+                pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
+                pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                
+                # Key text centered (white)
+                screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                
+                # Label text (gray)
+                label_surf = label_font.render(label, True, (150, 150, 150))
+                screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+            
+            # Tutorial Hint for Fire at white platform (x=9350-9600)
+            if current_level == "TUTORIAL" and 9350 <= player.x <= 9600:
+                key_font = pygame.font.Font(None, 26)
+                label_font = pygame.font.Font(None, 26)
+                
+                # CLICK RIGHT - Fire Shurikens (with key box)
+                key = "CLICK RIGHT"
+                label = "Fire Shuriken"
+                y_pos = 15
+                
+                # Key box (dark gray rounded rectangle)
+                key_text_surf = key_font.render(key, True, (255, 255, 255))
+                key_width = key_text_surf.get_width() + 16
+                key_height = 26
+                key_rect = pygame.Rect(15, y_pos, key_width, key_height)
+                
+                # Draw rounded key box
+                pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
+                pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                
+                # Key text centered (white)
+                screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                
+                # Label text (gray)
+                label_surf = label_font.render(label, True, (150, 150, 150))
+                screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
                  
             # --- PAUSE MENU OVERLAY ---
             if paused:
