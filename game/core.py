@@ -4,6 +4,7 @@ import random
 from .settings import *
 from .sprites import Player, Platform, SplatBlast
 from .utils import draw_game, draw_distortion, CrumbleEffect
+from .background import ParallaxBackground
 
 def run():
     # Initialize Pygame
@@ -13,6 +14,9 @@ def run():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("MonoMask")
     clock = pygame.time.Clock()
+    
+    # Initialize Background
+    background = ParallaxBackground()
 
     def reset_game():
         # Create player (starts as WHITE character)
@@ -95,7 +99,8 @@ def run():
                             transition_center = getattr(player, 'get_rect', lambda: pygame.Rect(0,0,0,0))().center
                             
                             # Capture OLD state (including distortion)
-                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects)
+                            # Passing background=background to ensure consistent capture
+                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, background)
                             # Note: We capture with current intensity
                             intensity = min(1.0, tension_duration / 12.0)
                             draw_distortion(old_screen_capture, intensity)
@@ -124,6 +129,10 @@ def run():
                             effects.extend(new_effects)
         
         if not game_over:
+            # Update Background Parallax
+            # Only update if player is moving
+            background.update(player.vel_x)
+
             # Tension Logic based on state
             if not player.is_white: # Mask Off (Black/Tension)
                 tension_duration += dt
@@ -201,7 +210,7 @@ def run():
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
-                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects)
+                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects, background)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -226,7 +235,7 @@ def run():
                     transition_active = False
             else:
                 # Standard Draw
-                draw_game(canvas, player.is_white, player, platforms, projectiles, effects)
+                draw_game(canvas, player.is_white, player, platforms, projectiles, effects, background)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake

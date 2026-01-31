@@ -3,10 +3,13 @@ from .settings import *
 import random
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
+    
+    if is_white_mode and background:
+        background.draw(surface)
     
     # Draw platforms
     for platform in platforms:
