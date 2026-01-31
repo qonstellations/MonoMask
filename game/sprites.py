@@ -884,8 +884,8 @@ class SlashWave:
         self.x = x
         self.y = y
         self.angle = angle
-        self.speed = 22
-        self.lifetime = 12 # Quick dissipate
+        self.speed = 12  # Reduced range
+        self.lifetime = 8  # Shorter range
         self.timer = 0
         
     def update(self):
@@ -949,6 +949,6 @@ class SlashWave:
         # precise collision is hard for an arc, simplified to circle overlap
         # Slash is approx 40-60 pixels in front.
         # Let's say it's a point at (x,y) with radius 30?
-        slash_rect = pygame.Rect(self.x - 20, self.y - 20, 40, 40)
+        slash_rect = pygame.Rect(self.x - 15, self.y - 15, 30, 30)  # Smaller hitbox
         return slash_rect.colliderect(rect)
 

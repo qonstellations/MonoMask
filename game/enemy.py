@@ -8,6 +8,7 @@ class MirrorRonin:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.spawn_x = x  # Remember original spawn position
         self.width = 50
         self.height = 50
         self.vel_x = 0
@@ -18,10 +19,12 @@ class MirrorRonin:
         self.on_ground = False
         
         # Combat State
-        self.health = 3
+        self.health = 5  # 2 katana hits or 5 projectile hits
         self.marked_for_deletion = False
         self.attack_timer = 0
         self.facing = 1
+        self.activated = False  # Only activate AI when player gets close
+        self.melee_damage_cooldown = 0  # Prevents multiple hits from same slash
         
         # Visual State
         self.anim_timer = 0.0
@@ -35,17 +38,25 @@ class MirrorRonin:
         # White Mode (Peace) -> Vulnerable to Projectiles
         # Black Mode (Tension) -> Vulnerable to Melee
         if source_type == "projectile":
-             # In White Mode, taking damage is valid
+             # Projectiles do 1 damage (5 hits to kill)
              self.health -= 1
-             # Knockback?
         elif source_type == "melee":
-             self.health -= 1
+             # Check cooldown to prevent multi-hit from same slash
+             if self.melee_damage_cooldown > 0:
+                 return  # Already hit by this attack
+             # Katana does 2.5 damage (2 hits to kill)
+             self.health -= 2.5
+             self.melee_damage_cooldown = 30  # Invincibility frames
              
         if self.health <= 0:
             self.marked_for_deletion = True
 
     def update(self, player, platforms, offset=(0,0)):
         self.anim_timer += 0.1
+        
+        # Decrement damage cooldown
+        if self.melee_damage_cooldown > 0:
+            self.melee_damage_cooldown -= 1
         self.on_ground = False
         
         # Basic Physics (Gravity)
@@ -61,11 +72,20 @@ class MirrorRonin:
                     self.vel_y = 0
                     self.on_ground = True
         
-        # AI Logic
-        if player.is_white:
-            self.behavior_white(player)
+        # AI Logic - Only activate when player gets close enough
+        dist_to_player = abs(self.x - player.x)
+        if not self.activated and dist_to_player < 600:
+            self.activated = True
+        
+        if self.activated:
+            if player.is_white:
+                self.behavior_white(player)
+            else:
+                self.behavior_black(player)
         else:
-            self.behavior_black(player)
+            # Idle - just stand and face the direction player will come from
+            self.vel_x = 0
+            self.facing = -1  # Face left (toward spawn/player start)
             
         # Edge Detection (Don't fall off platforms)
         if self.on_ground and self.vel_x != 0:

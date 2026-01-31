@@ -98,8 +98,11 @@ def run():
             spawn_x = last_plat['x'] + last_plat['w'] // 2 - 25 # -25 for half enemy width
             spawn_y = last_plat['y'] - 60 # Above platform
             
-        # enemies = spawn_enemies_for_level(platforms_data)
-        enemies = [] # User requested NO ENEMIES for testing
+        # Spawn enemy on the last platform
+        last_plat = platforms_data[-1]
+        enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25  # Center of platform
+        enemy_y = last_plat['y'] - 60  # Above platform
+        enemies = [MirrorRonin(enemy_x, enemy_y)]
         
         projectiles = []
         effects = []
@@ -445,7 +448,10 @@ def run():
                         if proj.get_rect().colliderect(player.get_rect()):
                             projectiles.remove(proj)
                             effects.append(SplatBlast(proj.x, proj.y, proj.color))
-                            tension_duration += 3.0
+                            # Only increase tension in white mode (peace)
+                            # In black mode (tension), just take damage/knockback
+                            if player.is_white:
+                                tension_duration += 3.0
                             player.shake_intensity = 15.0
                             dx = player.x - proj.x
                             if dx == 0: dx = 1
