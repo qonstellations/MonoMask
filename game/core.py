@@ -3,7 +3,8 @@ import sys
 import random
 from .settings import *
 from .sprites import Player, Platform, SplatBlast, Spike
-from .utils import draw_game, draw_distortion, CrumbleEffect, Camerafrom .background import ParallaxBackground
+from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
+from .background import ParallaxBackground
 
 def run():
     # Initialize Pygame
