@@ -43,7 +43,7 @@ class Player:
         return (self.is_white and platform.is_white) or (not self.is_white and not platform.is_white)
     
     
-    def update(self, platforms, offset=(0,0)):
+    def update(self, platforms, offset=(0,0), mouse_pos=None):
         ox, oy = offset
         # Update animation timer
         self.anim_timer += 0.1
@@ -73,8 +73,12 @@ class Player:
             self.pos_history.pop(0)
 
         # Mouse Aiming Logic (Screen Space to World Space)
+        # Mouse Aiming Logic (Screen Space to World Space)
         # Mouse Aiming Logic (Simplified to Screen Space)
-        mx, my = pygame.mouse.get_pos()
+        if mouse_pos:
+            mx, my = mouse_pos
+        else:
+            mx, my = pygame.mouse.get_pos()
         ox, oy = offset
         
         # Player Centroid in Screen Space
