@@ -35,6 +35,7 @@ def run():
         base_y = map_height - 200
         
         platforms_data = [
+              # Tutorial platforms data 
              {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
              {'x': 700, 'y': base_y-100, 'w': 100, 'type': 'white'},
              {'x': 900, 'y': base_y-200, 'w': 100, 'type': 'black'},
@@ -42,6 +43,13 @@ def run():
              {'x': 2200, 'y': base_y-400, 'w': 200, 'type': 'white'},
              {'x': 2400, 'y': base_y-500, 'w': 200, 'type': 'black'},
              {'x': 2600, 'y': base_y-290, 'w': 200, 'type': 'black'},
+             {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'},
+             {'x': 4500, 'y': base_y-300, 'w': 150, 'type': 'black'},
+             {'x': 4700, 'y': base_y-400, 'w': 150, 'type': 'neutral'},
+             {'x': 4450, 'y': base_y-500, 'w': 150, 'type': 'black'},
+             {'x': 4350, 'y': base_y-600, 'w': 150, 'type': 'white'},
+             {'x': 4450, 'y': base_y-700, 'w': 150, 'type': 'black'},
+             {'x': 4550, 'y': base_y-650, 'w': 150, 'type': 'black'},
         ]
         
         platforms = []
@@ -110,6 +118,11 @@ def run():
     max_radius = int((SCREEN_WIDTH**2 + SCREEN_HEIGHT**2)**0.5) + 50
     transition_center = (0, 0)
     
+    # Pause Menu State
+    paused = False
+    pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
+    pause_selected = 0  # Currently highlighted option
+    
     # Camera
     # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
     
@@ -143,57 +156,94 @@ def run():
                         scroll_y = 0
                         game_over = False
                         crumble_effect = None
+                        crumble_effect = None
                         transition_active = False
                 else:
-                    if event.key == pygame.K_e or event.key == pygame.K_LSHIFT or event.key == pygame.K_RSHIFT:
-                        # Prevent Swap if Forced
-                        if forced_black_mode_timer > 0:
-                            # Play "Locked" sound or visual shake?
-                            # For now just ignore
-                            pass
-                        elif not transition_active:
-                            # START TRANSITION
-                            transition_active = True
-                            transition_radius = 0
-                            # Get player center in SCREEN coordinates (camera-adjusted)
-                            # Get player center in SCREEN coordinates (camera-adjusted)
-                            player_rect = player.get_rect()
-                            player_screen_x = player_rect.centerx - scroll_x
-                            player_screen_y = player_rect.centery - scroll_y
-                            transition_center = (int(player_screen_x), int(player_screen_y))
-                            
-                            # Capture OLD state (including distortion)
-                            # Passing background=background to ensure consistent capture
-                            draw_game(old_screen_capture, player.is_white, player, 
-                                     platforms=platforms, 
-                                     projectiles=projectiles, 
-                                     effects=effects, 
-                                     background=background, 
-                                     spikes=spikes, 
-                                     camera=camera, 
-                                     enemies=enemies, 
-                                     offset=camera_offset)
-                            # Note: We capture with current intensity
-                            intensity = min(1.0, tension_duration / 12.0)
-                            draw_distortion(old_screen_capture, intensity)
-                            
-                            # Perform Swap
-                            player.swap_mask()
-                            
-                            # Sanity Reset: If switching to White (Calm), 
-                            # ensure tension is below the Forced Trigger (8.0)
-                            # otherwise it will instantly swap back next frame.
-                            if player.is_white:
-                                tension_duration = min(tension_duration, 7.0)
-                            
-                    # Shooting Input (Key: X)
-                    if event.key == pygame.K_x:
-                        proj = player.shoot()
-                        if proj:
-                            projectiles.append(proj)
+                    # ESC Key - Toggle Pause Menu
+                    if event.key == pygame.K_ESCAPE:
+                        paused = not paused
+                        pause_selected = 0  # Reset selection
+                    
+                    # Pause Menu Navigation
+                    elif paused:
+                        if event.key == pygame.K_UP or event.key == pygame.K_w:
+                            pause_selected = (pause_selected - 1) % len(pause_menu_options)
+                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                            pause_selected = (pause_selected + 1) % len(pause_menu_options)
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                            # Execute selected option
+                            selected_option = pause_menu_options[pause_selected]
+                            if selected_option == "Continue":
+                                paused = False
+                            elif selected_option == "Restart":
+                                player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                                tension_duration = 0.0
+                                overload_timer = 0.0
+                                forced_black_mode_timer = 0.0
+                                scroll_x = 0
+                                scroll_y = 0
+                                game_over = False
+                                crumble_effect = None
+                                transition_active = False
+                                paused = False
+                            elif selected_option == "Options":
+                                # TODO: Implement options menu
+                                pass
+                            elif selected_option == "Main Menu":
+                                # Return to main menu (exit run() function)
+                                pygame.quit()
+                                return "main_menu"
+                    
+                    # Only process game inputs if NOT paused
+                    elif not paused:
+                        if event.key == pygame.K_e or event.key == pygame.K_LSHIFT or event.key == pygame.K_RSHIFT:
+                            # Prevent Swap if Forced
+                            if forced_black_mode_timer > 0:
+                                # Play "Locked" sound or visual shake?
+                                # For now just ignore
+                                pass
+                            elif not transition_active:
+                                # START TRANSITION
+                                transition_active = True
+                                transition_radius = 0
+                                # Get player center in SCREEN coordinates (camera-adjusted)
+                                player_rect = player.get_rect()
+                                player_screen_x = player_rect.centerx - scroll_x
+                                player_screen_y = player_rect.centery - scroll_y
+                                transition_center = (int(player_screen_x), int(player_screen_y))
+                                
+                                # Capture OLD state (including distortion)
+                                # Passing background=background to ensure consistent capture
+                                draw_game(old_screen_capture, player.is_white, player, 
+                                         platforms=platforms, 
+                                         projectiles=projectiles, 
+                                         effects=effects, 
+                                         background=background, 
+                                         spikes=spikes, 
+                                         camera=camera, 
+                                         enemies=enemies, 
+                                         offset=camera_offset)
+                                # Note: We capture with current intensity
+                                intensity = min(1.0, tension_duration / 12.0)
+                                draw_distortion(old_screen_capture, intensity)
+                                
+                                # Perform Swap
+                                player.swap_mask()
+                                
+                                # Sanity Reset: If switching to White (Calm), 
+                                # ensure tension is below the Forced Trigger (8.0)
+                                # otherwise it will instantly swap back next frame.
+                                if player.is_white:
+                                    tension_duration = min(tension_duration, 7.0)
+                                
+                        # Shooting Input (Key: X)
+                        if event.key == pygame.K_x:
+                            proj = player.shoot()
+                            if proj:
+                                projectiles.append(proj)
             
-            # Shooting / Melee Input (Mouse: Left Click)
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            # Shooting / Melee Input (Mouse: Left Click) - Only when not paused
+            if event.type == pygame.MOUSEBUTTONDOWN and not paused:
                 if event.button == 1: # Left Click
                     if player.is_white:
                         # Peace Mode: Shoot
@@ -529,6 +579,45 @@ def run():
                  f_font = pygame.font.Font(None, 40)
                  alert = f_font.render(f"LOCKED IN RAGE: {forced_black_mode_timer:.1f}s", True, WHITE)
                  screen.blit(alert, (SCREEN_WIDTH//2 - 100, 100))
+            
+            # Pause Menu Overlay
+            if paused:
+                # Semi-transparent dark overlay
+                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 180))  # Dark with alpha
+                screen.blit(overlay, (0, 0))
+                
+                # Menu Title
+                title_font = pygame.font.Font(None, 72)
+                title_text = title_font.render("PAUSED", True, WHITE)
+                title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, 150))
+                screen.blit(title_text, title_rect)
+                
+                # Menu Options
+                option_font = pygame.font.Font(None, 48)
+                menu_start_y = 280
+                menu_spacing = 60
+                
+                for i, option in enumerate(pause_menu_options):
+                    if i == pause_selected:
+                        # Highlighted option
+                        color = (255, 200, 50)  # Gold/Yellow
+                        prefix = "> "
+                        suffix = " <"
+                    else:
+                        color = (200, 200, 200)  # Gray
+                        prefix = "  "
+                        suffix = "  "
+                    
+                    option_text = option_font.render(prefix + option + suffix, True, color)
+                    option_rect = option_text.get_rect(center=(SCREEN_WIDTH // 2, menu_start_y + i * menu_spacing))
+                    screen.blit(option_text, option_rect)
+                
+                # Controls hint
+                hint_font = pygame.font.Font(None, 28)
+                hint_text = hint_font.render("Use W/S or Arrow Keys to navigate, ENTER to select, ESC to resume", True, (150, 150, 150))
+                hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
+                screen.blit(hint_text, hint_rect)
             
         else:
             # Game Over State (Pixel Crumble)

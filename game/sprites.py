@@ -111,10 +111,8 @@ class Player:
         if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
             self.vel_y = -self.jump_strength
         
-        # Apply gravity
+        # Apply gravity (same in both modes for consistent jump height)
         current_gravity = self.gravity
-        if not self.is_white:
-            current_gravity *= 1.3 # Heavier feel
             
         self.vel_y += current_gravity
         
