@@ -43,7 +43,7 @@ class Player:
         return (self.is_white and platform.is_white) or (not self.is_white and not platform.is_white)
     
     
-    def update(self, platforms, offset=(0,0), mouse_pos=None):
+    def update(self, platforms, offset=(0,0), mouse_pos=None, aim_sensitivity=1.0):
         ox, oy = offset
         # Update animation timer
         self.anim_timer += 0.1
@@ -93,7 +93,15 @@ class Player:
         dist_sq = dx*dx + dy*dy
         # Only update aim if mouse is outside a small deadzone (prevents jitter)
         if dist_sq > 400: # 20 pixels squared
-            self.aim_angle = math.atan2(dy, dx)
+            target_angle = math.atan2(dy, dx)
+            # Apply sensitivity via lerp - higher = more responsive
+            lerp_factor = min(1.0, 0.3 * aim_sensitivity)
+            # Smooth angle interpolation (handle wraparound)
+            angle_diff = target_angle - self.aim_angle
+            # Normalize to -pi to pi
+            while angle_diff > math.pi: angle_diff -= 2 * math.pi
+            while angle_diff < -math.pi: angle_diff += 2 * math.pi
+            self.aim_angle += angle_diff * lerp_factor
         
         # Update Facing based on aim (Screen relative)
         if dx > 0:

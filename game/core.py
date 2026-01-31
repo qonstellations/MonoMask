@@ -122,8 +122,11 @@ def run():
     paused = False
     menu_state = "PAUSE" # PAUSE, OPTIONS
     pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
-    options_menu_options = ["Toggle Fullscreen", "Back"]
+    options_menu_options = ["Toggle Fullscreen", "Reticle Sensitivity", "Back"]
     pause_selected = 0  # Currently highlighted option
+    
+    # Sensitivity setting (1.0 = default, 0.5 = slow, 2.0 = fast)
+    reticle_sensitivity = 1.0
     
     # Camera
     # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -229,6 +232,13 @@ def run():
                                 elif selected_option == "Back":
                                     menu_state = "PAUSE"
                                     pause_selected = 0
+                        
+                        # Handle left/right for sensitivity adjustment
+                        if menu_state == "OPTIONS" and options_menu_options[pause_selected] == "Reticle Sensitivity":
+                            if event.key == pygame.K_LEFT:
+                                reticle_sensitivity = max(0.2, reticle_sensitivity - 0.1)
+                            elif event.key == pygame.K_RIGHT:
+                                reticle_sensitivity = min(3.0, reticle_sensitivity + 0.1)
                     
                     # Only process game inputs if NOT paused
                     elif not paused:
@@ -293,260 +303,209 @@ def run():
                             effects.extend(new_effects)
         
         if not game_over:
-            # Update Background Parallax
-            # Only update if player is moving
-            background.update(player.vel_x)
-
-            # Tension Logic based on state
-            # Initialize active_ronins for this frame to avoid stale data
-            active_ronins = 0
-            
-            if not player.is_white: # Mask Off (Black/Tension)
-                tension_duration += dt
-                drain_status = "BUILDING (Black Mode)"
-            else: # Mask On (White/Peace)
-                # Check for "Mental Drain" from active enemies
-                for e in enemies:
-                    if isinstance(e, MirrorRonin) and not e.marked_for_deletion:
-                        dist = abs(e.x - player.x)
-                        if dist < 500: # Only drain if close (Proximity effect)
-                            active_ronins += 1
-                            
-                if active_ronins > 0:
-                    # Instead of decaying, we INCREASE tension
-                    # Reduced rate (0.4) as requested
-                    tension_duration += dt * 0.4 * active_ronins
-                    
-                    # Cap: Enemy alone cannot push past 8.0 (The Forced Trigger threshold)
-                    if tension_duration > 8.0:
-                        tension_duration = 8.0
-                        
-                    drain_status = "BUILDING (Enemy)"
-                else:
-                    # Normal Decay - FAST when enemies are dead
-                    drain_rate = 5.0 # Faster decay so player can recover
-                    tension_duration -= dt * drain_rate
-                    drain_status = f"DRAINING (Rate {drain_rate})"
-                
-            # Clamp tension
-            tension_duration = max(0.0, min(tension_duration, 12.0))
-            
-            # Calculate Intensity (0.0 to 1.0)
+            # Calculate values needed for drawing even when paused
             intensity = min(1.0, tension_duration / 12.0)
             
-            # Forced Switch Logic (Trigger at 8.0 Tension, leaving 4.0 buffer)
-            if player.is_white and tension_duration >= 8.0:
-                 # TRIGGER FORCED SWITCH
-                 if not transition_active:
-                     transition_active = True
-                     transition_radius = 0
-                     transition_center = player.get_rect().center
-                     
-                     
-                     draw_game(old_screen_capture, player.is_white, player, 
-                              platforms=platforms, 
-                              projectiles=projectiles, 
-                              effects=effects, 
-                              background=background,
-                              spikes=spikes,
-                              camera=camera,
-                              enemies=enemies, 
-                              offset=camera_offset)
-                     draw_distortion(old_screen_capture, intensity)
-                     
-                     player.swap_mask() # Forces to Black
-                     forced_black_mode_timer = 5.0 # Lock for 5s
-                     
-                     # Start at 8.0 (The Cap). 
-                     # Player has 4.0s of buffer before Overload (12.0). 
-                     # MUST KILL to survive.
-                     tension_duration = 8.0 
-                     
-            # Overload Logic (Only in Black Mode now, effectively)
-            if tension_duration >= 12.0 and not player.is_white:
-                overload_timer += dt
-                if overload_timer > 3.0:
-                    game_over = True
-            else:
-                overload_timer = 0.0
-            
-            # Camera Logic
-            # Goal: Center player.
+            # Camera Logic (needed for drawing)
             current_sw, current_sh = screen.get_size()
-            target_scroll_x = player.x - current_sw / 2 + player.width / 2
             
-            # Smooth scroll (Lerp)
-            # Smooth scroll (Lerp)
-            scroll_x += (target_scroll_x - scroll_x) * 0.1
-            
-            # Vertical Scroll (Fix for AIMING / Drawing offscreen)
-            target_scroll_y = player.y - current_sh / 2 + player.height / 2
-            scroll_y += (target_scroll_y - scroll_y) * 0.1
-            
-            # Clamp scroll (Prevent seeing left of 0)
-            if scroll_x < 0:
-                scroll_x = 0
+            if not paused:
+                # --- ALL GAME UPDATES (Only when not paused) ---
                 
-            # Clamp vertical scroll (Optional, but good to keep ground in view)
-            # Map height is 2000. Screen height 720.
-            # Max scroll_y should be map_height - SCREEN_HEIGHT
-            # if scroll_y > map_height - SCREEN_HEIGHT: scroll_y = map_height - SCREEN_HEIGHT
-            if scroll_y < 0: scroll_y = 0
-            
-            camera_offset = (int(scroll_x), int(scroll_y))
-            
-            # Mouse position - no scaling needed since canvas is at native resolution
-            mouse_pos_canvas = pygame.mouse.get_pos()
-            
-            # Update logic
-            player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas)
-            
-            # Projectile Logic
-            for proj in projectiles[:]:
-                proj.update(offset=camera_offset)
-                if proj.marked_for_deletion:
-                    projectiles.remove(proj)
-                    continue
-                
-                # Collision Check
-                proj_rect = proj.get_rect() 
-                # Note: Projectiles are world space. Platforms are world space. Collision works fine.
-                hit = False
-                
-                for platform in platforms:
-                    # Check if platform is active/solid
-                    if player.is_neutral_collision(platform):
-                        if proj_rect.colliderect(platform.get_rect()):
-                            hit = True
-                            # Spawn splat (Backtrack slightly to appear ON surface, not IN it)
-                            # Simple approximation: Move back 1 step of velocity
-                            impact_x = proj.x - proj.vx
-                            impact_y = proj.y - proj.vy
-                            effects.append(SplatBlast(impact_x, impact_y, proj.color))
-                            break
-                
-                if hit:
-                    projectiles.remove(proj)
-                    continue
+                # Update Background Parallax
+                background.update(player.vel_x)
 
-                # Collision Check: Projectile vs Player
-                if not proj.is_player_shot:
-                    if proj.get_rect().colliderect(player.get_rect()):
-                        # Player Hit by Enemy Projectile
+                # Tension Logic based on state
+                active_ronins = 0
+                
+                if not player.is_white: # Mask Off (Black/Tension)
+                    tension_duration += dt
+                    drain_status = "BUILDING (Black Mode)"
+                else: # Mask On (White/Peace)
+                    # Check for "Mental Drain" from active enemies
+                    for e in enemies:
+                        if isinstance(e, MirrorRonin) and not e.marked_for_deletion:
+                            dist = abs(e.x - player.x)
+                            if dist < 500: # Only drain if close (Proximity effect)
+                                active_ronins += 1
+                                
+                    if active_ronins > 0:
+                        tension_duration += dt * 0.4 * active_ronins
+                        if tension_duration > 8.0:
+                            tension_duration = 8.0
+                        drain_status = "BUILDING (Enemy)"
+                    else:
+                        drain_rate = 5.0
+                        tension_duration -= dt * drain_rate
+                        drain_status = f"DRAINING (Rate {drain_rate})"
+                    
+                # Clamp tension
+                tension_duration = max(0.0, min(tension_duration, 12.0))
+                
+                # Recalculate Intensity after update
+                intensity = min(1.0, tension_duration / 12.0)
+                
+                # Forced Switch Logic (Trigger at 8.0 Tension)
+                if player.is_white and tension_duration >= 8.0:
+                     if not transition_active:
+                         transition_active = True
+                         transition_radius = 0
+                         transition_center = player.get_rect().center
+                         
+                         draw_game(old_screen_capture, player.is_white, player, 
+                                  platforms=platforms, 
+                                  projectiles=projectiles, 
+                                  effects=effects, 
+                                  background=background,
+                                  spikes=spikes,
+                                  camera=camera,
+                                  enemies=enemies, 
+                                  offset=camera_offset)
+                         draw_distortion(old_screen_capture, intensity)
+                         
+                         player.swap_mask()
+                         forced_black_mode_timer = 5.0
+                         tension_duration = 8.0 
+                         
+                # Overload Logic
+                if tension_duration >= 12.0 and not player.is_white:
+                    overload_timer += dt
+                    if overload_timer > 3.0:
+                        game_over = True
+                else:
+                    overload_timer = 0.0
+                
+                # Camera Logic - Update scroll
+                target_scroll_x = player.x - current_sw / 2 + player.width / 2
+                scroll_x += (target_scroll_x - scroll_x) * 0.1
+                
+                target_scroll_y = player.y - current_sh / 2 + player.height / 2
+                scroll_y += (target_scroll_y - scroll_y) * 0.1
+                
+                if scroll_x < 0:
+                    scroll_x = 0
+                if scroll_y < 0: 
+                    scroll_y = 0
+                
+                camera_offset = (int(scroll_x), int(scroll_y))
+                
+                # Mouse position
+                mouse_pos_canvas = pygame.mouse.get_pos()
+                
+                # Update player
+                player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
+                
+                # Projectile Logic
+                for proj in projectiles[:]:
+                    proj.update(offset=camera_offset)
+                    if proj.marked_for_deletion:
                         projectiles.remove(proj)
-                        effects.append(SplatBlast(proj.x, proj.y, proj.color))
-                        
-                        # Apply Damage (Similar to collision)
-                        tension_duration += 3.0 # Big spike for getting hit
-                        player.shake_intensity = 15.0
-                        
-                        # Knockback
-                        dx = player.x - proj.x
-                        if dx == 0: dx = 1
-                        direction = dx / abs(dx)
-                        player.vel_x = direction * 8
-                        player.vel_y = -4
+                        continue
+                    
+                    proj_rect = proj.get_rect() 
+                    hit = False
+                    
+                    for platform in platforms:
+                        if player.is_neutral_collision(platform):
+                            if proj_rect.colliderect(platform.get_rect()):
+                                hit = True
+                                impact_x = proj.x - proj.vx
+                                impact_y = proj.y - proj.vy
+                                effects.append(SplatBlast(impact_x, impact_y, proj.color))
+                                break
+                    
+                    if hit:
+                        projectiles.remove(proj)
                         continue
 
-            # Effects Logic
-            for eff in effects[:]:
-                eff.update()
-                if eff.timer > eff.lifetime:
-                    effects.remove(eff)
-            
-            # Spike Logic
-            player_rect = player.get_rect()
-            for spike in spikes:
-                if player.is_neutral_collision(spike):
-                     spike_rect = spike.get_rect()
-                     if player_rect.colliderect(spike_rect):
-                         # Fatal collision
-                         game_over = True
-                         crumble_effect = CrumbleEffect(screen)
-                         break
+                    if not proj.is_player_shot:
+                        if proj.get_rect().colliderect(player.get_rect()):
+                            projectiles.remove(proj)
+                            effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                            tension_duration += 3.0
+                            player.shake_intensity = 15.0
+                            dx = player.x - proj.x
+                            if dx == 0: dx = 1
+                            direction = dx / abs(dx)
+                            player.vel_x = direction * 8
+                            player.vel_y = -4
+                            continue
 
-            # Enemy Logic
-            for enemy in enemies[:]:
-                enemy.update(player, platforms, offset=camera_offset) # Wait, enemy.update typically needs world space.
-                if enemy.marked_for_deletion:
-                    enemies.remove(enemy)
-                    continue
+                # Effects Logic
+                for eff in effects[:]:
+                    eff.update()
+                    if eff.timer > eff.lifetime:
+                        effects.remove(eff)
                 
-                # Collision with Projectiles (White Mode)
-                enemy_rect = enemy.get_rect()
-                for proj in projectiles[:]:
-                    if proj.get_rect().colliderect(enemy_rect):
-                        # Only hurt if in White Mode (Doubt) and proj is from Player
-                        if player.is_white and proj.is_player_shot:
-                             enemy.take_damage("projectile")
-                             projectiles.remove(proj)
-                             effects.append(SplatBlast(proj.x, proj.y, proj.color))
-                        elif not proj.is_player_shot:
-                             # Enemy projectile hitting enemy -> Ignore
-                             pass
-                        else:
-                             # Player projectile hitting Black Mode enemy -> Deflect/Ignore
-                             pass
-                
-                # Collision with Melee (Black Mode)
-                # Only hurt if in Black Mode (Tension)
-                if not player.is_white:
-                    for eff in effects:
-                        if isinstance(eff, SlashWave): 
-                            if eff.check_collision(enemy.get_rect()):
-                                enemy.take_damage("melee")
-                                # Visual feedback?
-                                effects.append(SplatBlast(enemy.x, enemy.y, WHITE))
-                                
-                                # Heal Logic: Killing heals sanity/tension
-                                if enemy.health <= 0:
-                                    print("ENEMY KILLED! Healing Tension.")
-                                    enemy.marked_for_deletion = True # Ensure it's marked
-                                    tension_duration -= 5.0 # Restore Sanity!
-                                    tension_duration = max(0.0, tension_duration)
-                                    # Flash screen green? or just sound
+                # Spike Logic
+                player_rect = player.get_rect()
+                for spike in spikes:
+                    if player.is_neutral_collision(spike):
+                         spike_rect = spike.get_rect()
+                         if player_rect.colliderect(spike_rect):
+                             game_over = True
+                             crumble_effect = CrumbleEffect(screen)
+                             break
+
+                # Enemy Logic
+                for enemy in enemies[:]:
+                    enemy.update(player, platforms, offset=camera_offset)
+                    if enemy.marked_for_deletion:
+                        enemies.remove(enemy)
+                        continue
+                    
+                    enemy_rect = enemy.get_rect()
+                    for proj in projectiles[:]:
+                        if proj.get_rect().colliderect(enemy_rect):
+                            if player.is_white and proj.is_player_shot:
+                                 enemy.take_damage("projectile")
+                                 projectiles.remove(proj)
+                                 effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                    
+                    if not player.is_white:
+                        for eff in effects:
+                            if isinstance(eff, SlashWave): 
+                                if eff.check_collision(enemy.get_rect()):
+                                    enemy.take_damage("melee")
+                                    effects.append(SplatBlast(enemy.x, enemy.y, WHITE))
                                     
-                                break
-                
-                # Handle Enemy Projectiles
-                if hasattr(enemy, 'pending_projectiles') and enemy.pending_projectiles:
-                    projectiles.extend(enemy.pending_projectiles)
-                    enemy.pending_projectiles = []
+                                    if enemy.health <= 0:
+                                        print("ENEMY KILLED! Healing Tension.")
+                                        enemy.marked_for_deletion = True
+                                        tension_duration -= 5.0
+                                        tension_duration = max(0.0, tension_duration)
+                                    break
                     
-                # Enemy -> Player Collision (Attack)
-                if enemy.get_rect().colliderect(player.get_rect()):
-                    # Damage Logic: Tension Spike
-                    tension_duration += 2.0 # Spike tension!
-                    
-                    # Knockback
-                    dx = player.x - enemy.x
-                    if dx == 0: dx = 1
-                    direction = dx / abs(dx)
-                    player.vel_x = direction * 10
-                    player.vel_y = -5 # Pop up
-                    player.shake_intensity = 10.0
-                    
-                    # Optional: Invulnerability frame? For prototype, just spam check is fine (tension caps at 12 anyway)
-                    # But better to push enemy away too?
-                    enemy.vel_x = -direction * 10
+                    if hasattr(enemy, 'pending_projectiles') and enemy.pending_projectiles:
+                        projectiles.extend(enemy.pending_projectiles)
+                        enemy.pending_projectiles = []
+                        
+                    if enemy.get_rect().colliderect(player.get_rect()):
+                        tension_duration += 2.0
+                        dx = player.x - enemy.x
+                        if dx == 0: dx = 1
+                        direction = dx / abs(dx)
+                        player.vel_x = direction * 10
+                        player.vel_y = -5
+                        player.shake_intensity = 10.0
+                        enemy.vel_x = -direction * 10
             
-            # Calculate Screen Shake
+            # Calculate Screen Shake (can happen even when paused, but won't change much)
             shake_x = 0
             shake_y = 0
             
-            # Combine sources of shake
-            total_intensity = intensity
-            shake_amp = 10 * total_intensity
-            
-            if overload_timer > 0:
-                shake_amp += overload_timer * 5 
+            if not paused:
+                total_intensity = intensity
+                shake_amp = 10 * total_intensity
                 
-            # Add Player Trauma/Shake (e.g. from Katana)
-            shake_amp += getattr(player, 'shake_intensity', 0)
-            
-            if shake_amp > 0:
-                shake_x = int((random.random() - 0.5) * 2 * shake_amp)
-                shake_y = int((random.random() - 0.5) * 2 * shake_amp)
+                if overload_timer > 0:
+                    shake_amp += overload_timer * 5 
+                    
+                shake_amp += getattr(player, 'shake_intensity', 0)
+                
+                if shake_amp > 0:
+                    shake_x = int((random.random() - 0.5) * 2 * shake_amp)
+                    shake_y = int((random.random() - 0.5) * 2 * shake_amp)
             
             # Update Camera
             # camera.update(player)
@@ -610,6 +569,14 @@ def run():
             # Canvas is now at native resolution, no scaling needed
             screen.blit(canvas, (shake_x, shake_y))
             
+            # FPS Counter (Top Right, game-style)
+            fps_font = pygame.font.Font(None, 28)
+            current_fps = int(clock.get_fps())
+            fps_color = (0, 255, 0) if current_fps >= 55 else (255, 255, 0) if current_fps >= 30 else (255, 0, 0)
+            fps_text = fps_font.render(f"FPS: {current_fps}", True, fps_color)
+            fps_rect = fps_text.get_rect(topright=(screen.get_width() - 10, 10))
+            screen.blit(fps_text, fps_rect)
+            
             # DEBUG HUD
             debug_font = pygame.font.Font(None, 24)
             d_stat = locals().get('drain_status', 'N/A')
@@ -652,16 +619,21 @@ def run():
                     color = WHITE
                     text = option
                     
+                    # Special handling for sensitivity display
+                    if option == "Reticle Sensitivity":
+                        text = f"Reticle Sensitivity: {reticle_sensitivity:.1f}x"
+                    
                     if i == pause_selected:
                         color = (255, 200, 50) # Highlight Color (Gold)
-                        text = f"> {text} <"
+                        if option == "Reticle Sensitivity":
+                            text = f"< {text} >"
+                        else:
+                            text = f"> {text} <"
                         
                     opt_surf = menu_font.render(text, True, color)
                     screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
-            
 
-            
-        else:
+        elif game_over:
             # Game Over State (Pixel Crumble)
             if crumble_effect is None:
                 crumble_effect = CrumbleEffect(screen)
