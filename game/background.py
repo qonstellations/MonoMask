@@ -9,24 +9,21 @@ class ParallaxBackground:
         
         # Helper to load and scale
         def load_asset(filename):
-            # Absolute path fallback
-            ARTIFACT_DIR = r"C:\Users\krish\.gemini\antigravity\brain\b14e7323-2ca0-43d5-95c8-aeac77635752"
+            # Resolve path relative to this file (__file__ is inside game/)
+            # Go up one level to get to project root
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ARTIFACT_DIR = os.path.join(base_dir, "assets")
             
             # Use high-quality generated assets
             name_map = {
                 # Map far/mid/near to the generated smooth textures
-                "cloud_far.png": "cloud_v2_far_1769843744997.png",
-                "cloud_mid.png": "cloud_v2_mid_1769843759622.png",
-                "cloud_near.png": "cloud_v2_mid_1769843759622.png" # Reuse mid for near
+                "cloud_far.jpeg": "cloud_far.jpeg",
+                "cloud_mid.jpeg": "cloud_mid.jpeg",
+                "cloud_near.jpeg": "cloud_mid.jpeg" # Reuse mid for near
             }
             
             real_name = name_map.get(filename, filename)
             path = os.path.join(ARTIFACT_DIR, real_name)
-            
-            if not os.path.exists(path):
-                # Try the other ID if not found (fallback)
-                ALT_DIR = r"C:\Users\krish\.gemini\antigravity\brain\d3a64e91-0ff2-4b4e-b9ec-434f71c388e2"
-                path = os.path.join(ALT_DIR, real_name)
             
             if not os.path.exists(path):
                 print(f"Warning: Asset {real_name} not found")
@@ -43,13 +40,13 @@ class ParallaxBackground:
         self.base_bg = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.base_bg.fill((245, 245, 245)) # Very light grey/white smoke color
 
-        self.cloud_far = load_asset("cloud_far.png")
+        self.cloud_far = load_asset("cloud_far.jpeg")
         if self.cloud_far: self.cloud_far.set_alpha(100) # Very faint
 
-        self.cloud_mid = load_asset("cloud_mid.png")
+        self.cloud_mid = load_asset("cloud_mid.jpeg")
         if self.cloud_mid: self.cloud_mid.set_alpha(80) # Subtle
 
-        self.cloud_near = load_asset("cloud_near.png")
+        self.cloud_near = load_asset("cloud_near.jpeg")
         if self.cloud_near: self.cloud_near.set_alpha(60) # Barely visible overlay
         
         # Scroll Offsets
@@ -69,10 +66,16 @@ class ParallaxBackground:
         """
         Update scroll positions based on player velocity + wind.
         """
-        # Apply combined movement: Player Movement + Constant Wind
-        delta_far = (velocity_x * self.factor_far) + (self.wind_speed * 0.2)
-        delta_mid = (velocity_x * self.factor_mid) + (self.wind_speed * 0.5)
-        delta_near = (velocity_x * self.factor_near) + (self.wind_speed * 1.0)
+        # 1. Parallax Component (Only if moving forward)
+        para_vel = velocity_x if velocity_x > 0 else 0
+        
+        # 2. Wind Component (Always active)
+        wind = self.wind_speed
+        
+        # Apply combined movement
+        delta_far = (para_vel * self.factor_far) + (wind * 0.2)
+        delta_mid = (para_vel * self.factor_mid) + (wind * 0.5)
+        delta_near = (para_vel * self.factor_near) + (wind * 1.0)
         
         self.scroll_far -= delta_far
         self.scroll_mid -= delta_mid
