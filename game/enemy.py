@@ -166,7 +166,7 @@ class MirrorRonin:
         # Face player
         self.facing = -1 if dist_x > 0 else 1
 
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         ox, oy = offset
         
         # Apply Camera if available

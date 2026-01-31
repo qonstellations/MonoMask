@@ -207,7 +207,7 @@ class Player:
             self.fell_into_void = True
     
         
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Visual Config: Samurai Prototype (Standard Resolution)
         ox, oy = offset
         
@@ -614,7 +614,7 @@ class Platform:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         # SKETCH STYLE DRAWING
         
         # Visibility check
@@ -726,7 +726,7 @@ class Spike:
         # Hitbox (smaller than visual)
         return pygame.Rect(self.x + 5, self.y + 10, self.width - 10, self.height - 10)
         
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         # Similar visibility rules to Platforms
         should_be_active = self.is_neutral or (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
         
@@ -797,7 +797,7 @@ class Projectile:
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Generate points in WORLD SPACE first, then apply camera/offset
         num_points = 20
         points = []
@@ -890,7 +890,7 @@ class SplatBlast:
             # Shrink
             p['size'] *= p['decay']
             
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         ox, oy = offset
         for p in self.particles:
             if p['size'] < 1:
@@ -925,7 +925,7 @@ class SlashWave:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
         
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Draw a "Distorted Wavefront" (Semi-circle with noise)
         ox, oy = offset
         

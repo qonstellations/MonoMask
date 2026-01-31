@@ -132,7 +132,7 @@ class ParallaxBackground:
         self.scroll_mid %= SCREEN_WIDTH
         self.scroll_near %= SCREEN_WIDTH
 
-    def draw(self, surface):
+    def draw(self, surface, scale=1.0):
         # Get actual surface dimensions
         surf_w, surf_h = surface.get_size()
         

@@ -7,16 +7,27 @@ from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin
 
-def run():
-    # Initialize Pygame
-    pygame.init()
-    pygame.mixer.init()  # Initialize audio mixer
+from .enemy import MirrorRonin
+from .settings_manager import save_settings # Import settings manager
+
+def run(screen, settings):
+    # Initialize Pygame Mixer (Safe to call multiple times or checks init)
+    # pygame.init() is handled in main.py
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
 
     # Game setup
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("MonoMask")
+    # screen is passed exclusively
+    # pygame.display.set_caption("MonoMask") # Handled in main
     pygame.mouse.set_visible(False) # Hide system cursor, use in-game reticle
     clock = pygame.time.Clock()
+    
+    # ... (Audio Lines) ...
+    
+    # Sensitivity setting (Loaded from settings)
+    reticle_sensitivity = settings.get("sensitivity", 1.0)
+    
+    # ... (Rest of Init) ...
     
     # Audio Paths & Objects
     try:
@@ -228,23 +239,34 @@ def run():
     
     # Pause Menu State
     paused = False
-    menu_state = "PAUSE" # PAUSE, OPTIONS
+    menu_state = "PAUSE"  # PAUSE, OPTIONS
     pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
     options_menu_options = ["Toggle Fullscreen", "Reticle Sensitivity", "Back"]
     pause_selected = 0  # Currently highlighted option
     
-    # Sensitivity setting (1.0 = default, 0.5 = slow, 2.0 = fast)
-    reticle_sensitivity = 1.0
-    
     # Camera
     # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
     
-    is_fullscreen = False
+    is_fullscreen = settings.get("fullscreen", False)
     
-    # Surfaces
-    canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Used for final compositing
-    old_screen_capture = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Snapshot of old state
-    next_state_capture = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Render of new state
+    # --- DYNAMIC RENDER RESOLUTION ---
+    # Detect native resolution for fullscreen rendering
+    screen_w, screen_h = screen.get_size()
+    
+    # Scale Factor (1.0 = base resolution)
+    scale_factor = 1.0
+    if screen_w > SCREEN_WIDTH or screen_h > SCREEN_HEIGHT:
+        # Use native resolution
+        render_w, render_h = screen_w, screen_h
+        scale_factor = screen_w / SCREEN_WIDTH
+    else:
+        render_w, render_h = SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    # Surfaces (at render resolution)
+    SHAKE_PADDING = int(50 * scale_factor)  # Used for shake amplitude calculation
+    canvas = pygame.Surface((render_w, render_h))
+    old_screen_capture = pygame.Surface((render_w, render_h))
+    next_state_capture = pygame.Surface((render_w, render_h))
 
     while running:
         dt = clock.tick(FPS) / 1000.0
@@ -316,37 +338,50 @@ def run():
                                     menu_state = "OPTIONS"
                                     pause_selected = 0
                                 elif selected_option == "Main Menu":
-                                    pygame.quit()
+                                    # Stop all sounds before returning to menu
+                                    pygame.mixer.stop()
                                     return "main_menu"
                                     
                             elif menu_state == "OPTIONS":
                                 selected_option = options_menu_options[pause_selected]
                                 if selected_option == "Toggle Fullscreen":
                                     # Toggle Logic
-                                    is_fullscreen = not is_fullscreen
-                                    if is_fullscreen:
-                                        # Native Fullscreen
+                                    settings["fullscreen"] = not settings["fullscreen"]
+                                    save_settings(settings)
+                                    
+                                    if settings["fullscreen"]:
                                         screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                                     else:
-                                        # Windowed Default
-                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0)
                                     
-                                    # Recreate surfaces at new resolution
-                                    new_w, new_h = screen.get_size()
-                                    canvas = pygame.Surface((new_w, new_h))
-                                    old_screen_capture = pygame.Surface((new_w, new_h))
-                                    next_state_capture = pygame.Surface((new_w, new_h))
+                                    # Recalculate scale_factor and recreate canvas
+                                    screen_w, screen_h = screen.get_size()
+                                    if screen_w > SCREEN_WIDTH or screen_h > SCREEN_HEIGHT:
+                                        render_w, render_h = screen_w, screen_h
+                                        scale_factor = screen_w / SCREEN_WIDTH
+                                    else:
+                                        render_w, render_h = SCREEN_WIDTH, SCREEN_HEIGHT
+                                        scale_factor = 1.0
+                                    
+                                    SHAKE_PADDING = int(50 * scale_factor)
+                                    canvas = pygame.Surface((render_w, render_h))
+                                    old_screen_capture = pygame.Surface((render_w, render_h))
+                                    next_state_capture = pygame.Surface((render_w, render_h))
                                     
                                 elif selected_option == "Back":
                                     menu_state = "PAUSE"
                                     pause_selected = 0
                         
-                        # Handle left/right for sensitivity adjustment
+                        # Slider Logic (Right/Left)
                         if menu_state == "OPTIONS" and options_menu_options[pause_selected] == "Reticle Sensitivity":
-                            if event.key == pygame.K_LEFT:
-                                reticle_sensitivity = max(0.2, reticle_sensitivity - 0.1)
-                            elif event.key == pygame.K_RIGHT:
-                                reticle_sensitivity = min(3.0, reticle_sensitivity + 0.1)
+                             if event.key == pygame.K_LEFT:
+                                 settings["sensitivity"] = max(0.2, settings["sensitivity"] - 0.1)
+                                 reticle_sensitivity = settings["sensitivity"]
+                                 save_settings(settings)
+                             elif event.key == pygame.K_RIGHT:
+                                 settings["sensitivity"] = min(3.0, settings["sensitivity"] + 0.1)
+                                 reticle_sensitivity = settings["sensitivity"]
+                                 save_settings(settings)
                     
                     # Only process game inputs if NOT paused
                     elif not paused:
@@ -723,12 +758,12 @@ def run():
             
             if not paused:
                 total_intensity = intensity
-                shake_amp = 10 * total_intensity
+                shake_amp = 20 * total_intensity * scale_factor  # Increased from 10
                 
                 if overload_timer > 0:
-                    shake_amp += overload_timer * 5 
+                    shake_amp += overload_timer * 10 * scale_factor  # Increased from 5
                     
-                shake_amp += getattr(player, 'shake_intensity', 0)
+                shake_amp += getattr(player, 'shake_intensity', 0) * scale_factor
                 
                 if shake_amp > 0:
                     shake_x = int((random.random() - 0.5) * 2 * shake_amp)
@@ -776,7 +811,8 @@ def run():
                 if transition_radius > max_radius:
                     transition_active = False
             else:
-                # Standard Draw
+                # Standard Draw (apply shake to offset)
+                shake_offset = (camera_offset[0] + shake_x, camera_offset[1] + shake_y)
                 draw_game(canvas, player.is_white, player, 
                          platforms=platforms, 
                          projectiles=projectiles, 
@@ -785,7 +821,7 @@ def run():
                          spikes=spikes, 
                          camera=camera, 
                          enemies=enemies, 
-                         offset=camera_offset)
+                         offset=shake_offset)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake
@@ -793,8 +829,8 @@ def run():
             current_bg = CREAM if player.is_white else BLACK_MATTE
             screen.fill(current_bg) 
             
-            # Canvas is now at native resolution, no scaling needed
-            screen.blit(canvas, (shake_x, shake_y))
+            # Canvas blits directly, shake applied via camera offset
+            screen.blit(canvas, (0, 0))
             
             # FPS Counter (Top Right, game-style)
             fps_font = pygame.font.Font(None, 28)
@@ -815,60 +851,135 @@ def run():
             if forced_black_mode_timer > 0:
                  f_font = pygame.font.Font(None, 40)
                  alert = f_font.render(f"LOCKED IN RAGE: {forced_black_mode_timer:.1f}s", True, WHITE)
-                 screen.blit(alert, (SCREEN_WIDTH//2 - 150, 100))
+                 canvas.blit(alert, (SCREEN_WIDTH//2 - 150, 100))
                  
             # --- PAUSE MENU OVERLAY ---
             if paused:
-                # Get actual screen dimensions
-                sw, sh = screen.get_size()
-                
-                # Dim the screen
-                overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                # Dim the screen (Use RENDER resolution)
+                overlay = pygame.Surface((render_w, render_h), pygame.SRCALPHA)
                 overlay.fill((0, 0, 0, 180)) # Semi-transparent black
-                screen.blit(overlay, (0, 0))
+                canvas.blit(overlay, (0, 0))
                 
-                # Draw Menu
-                menu_font = pygame.font.Font(None, 50)
-                title_font = pygame.font.Font(None, 80)
+                # Draw Menu (Scaled Fonts)
+                menu_font = pygame.font.Font(None, int(50 * scale_factor))
+                title_font = pygame.font.Font(None, int(80 * scale_factor))
                 
                 # Title
                 title_text = "PAUSED" if menu_state == "PAUSE" else "OPTIONS"
                 title_surf = title_font.render(title_text, True, WHITE)
-                screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
+                canvas.blit(title_surf, (int(SCREEN_WIDTH * scale_factor)//2 - title_surf.get_width()//2, int(150 * scale_factor)))
                 
                 # Options
                 options_to_draw = pause_menu_options if menu_state == "PAUSE" else options_menu_options
                 
-                start_y = 250
-                gap_y = 60
+                start_y = 280  # Base Y position
+                gap_y = 80     # Increased vertical gap
                 
                 for i, option in enumerate(options_to_draw):
-                    color = WHITE
+                    # Default: Text is White
+                    text_color = WHITE
                     text = option
+                    is_selected = (i == pause_selected)
                     
-                    # Special handling for sensitivity display
-                    if option == "Reticle Sensitivity":
-                        text = f"Reticle Sensitivity: {reticle_sensitivity:.1f}x"
+                    # Calculate position (in base coordinates, then scale)
+                    y_pos = start_y + i * gap_y
+                    center_x = SCREEN_WIDTH // 2
                     
-                    if i == pause_selected:
-                        color = (255, 200, 50) # Highlight Color (Gold)
-                        if option == "Reticle Sensitivity":
-                            text = f"< {text} >"
+                    if option == "Toggle Fullscreen":
+                        # LABEL with Highlight
+                        if is_selected:
+                            # Draw highlight behind text
+                            text_surf = menu_font.render("Fullscreen", True, (0, 0, 0))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                            pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                            canvas.blit(text_surf, text_rect)
                         else:
-                            text = f"> {text} <"
+                            text_surf = menu_font.render("Fullscreen", True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            canvas.blit(text_surf, text_rect)
                         
-                    opt_surf = menu_font.render(text, True, color)
-                    screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
+                        # SWITCH (no highlight, just normal state)
+                        switch_w = int(60 * scale_factor)
+                        switch_h = int(30 * scale_factor)
+                        switch_x = int((center_x + 150) * scale_factor)
+                        switch_y = int(y_pos * scale_factor) - switch_h // 2
+                        switch_rect = pygame.Rect(switch_x, switch_y, switch_w, switch_h)
+                        
+                        knob_radius = int(12 * scale_factor)
+                        
+                        if settings["fullscreen"]:
+                            # On State: Filled White
+                            pygame.draw.rect(canvas, (255, 255, 255), switch_rect, border_radius=int(15 * scale_factor))
+                            pygame.draw.circle(canvas, (0, 0, 0), (switch_x + switch_w - int(15 * scale_factor), switch_y + switch_h // 2), knob_radius)
+                        else:
+                            # Off State: Outline White
+                            pygame.draw.rect(canvas, (255, 255, 255), switch_rect, 2, border_radius=int(15 * scale_factor))
+                            pygame.draw.circle(canvas, (255, 255, 255), (switch_x + int(15 * scale_factor), switch_y + switch_h // 2), int(10 * scale_factor))
+
+                    elif option == "Reticle Sensitivity":
+                        # LABEL with Highlight
+                        if is_selected:
+                            text_surf = menu_font.render("Reticle Sensitivity", True, (0, 0, 0))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                            pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                            canvas.blit(text_surf, text_rect)
+                        else:
+                            text_surf = menu_font.render("Reticle Sensitivity", True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            canvas.blit(text_surf, text_rect)
+                        
+                        # SLIDER (no highlight)
+                        slider_w = int(150 * scale_factor)
+                        slider_h = int(4 * scale_factor)
+                        slider_x = int((center_x + 150) * scale_factor)
+                        slider_y = int(y_pos * scale_factor) - slider_h // 2
+                        
+                        pygame.draw.rect(canvas, (255, 255, 255), (slider_x, slider_y, slider_w, slider_h))
+                        
+                        # Knob
+                        val = settings["sensitivity"]
+                        norm = (val - 0.2) / (3.0 - 0.2)
+                        knob_x = slider_x + norm * slider_w
+                        
+                        pygame.draw.circle(canvas, (255, 255, 255), (int(knob_x), int(slider_y + slider_h // 2)), int(8 * scale_factor))
+                        
+                        # Value Text
+                        val_font = pygame.font.Font(None, int(30 * scale_factor))
+                        val_surf = val_font.render(f"{val:.1f}", True, (255, 255, 255))
+                        canvas.blit(val_surf, (slider_x + slider_w + int(20 * scale_factor), slider_y - int(8 * scale_factor)))
+                        
+                    else:
+                        # Standard Button (Text Highlight)
+                        if is_selected:
+                             text_surf = menu_font.render(text, True, (0, 0, 0))
+                             text_rect = text_surf.get_rect(center=(int(center_x * scale_factor), int(y_pos * scale_factor)))
+                             bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                             pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                             canvas.blit(text_surf, text_rect)
+                        else:
+                             text_surf = menu_font.render(text, True, (255, 255, 255))
+                             canvas.blit(text_surf, text_surf.get_rect(center=(int(center_x * scale_factor), int(y_pos * scale_factor))))
 
         elif game_over:
             # Game Over State (Pixel Crumble)
             if crumble_effect is None:
-                crumble_effect = CrumbleEffect(screen)
+                crumble_effect = CrumbleEffect(canvas)
             
             crumble_effect.update()
-            crumble_effect.draw(screen)
+            crumble_effect.draw(canvas)
         
+        # --- Final Presentation ---
+        # Scale canvas to actual screen size (Native Fullscreen Support)
+        target_size = screen.get_size()
+        if target_size != (SCREEN_WIDTH, SCREEN_HEIGHT):
+            pygame.transform.smoothscale(canvas, target_size, screen)
+        else:
+            screen.blit(canvas, (0,0))
+            
         pygame.display.flip()
 
-    pygame.quit()
-    sys.exit()
+        pygame.display.flip()
+    
+    return "quit"
