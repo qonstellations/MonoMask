@@ -407,6 +407,17 @@ def run():
                 # Update player
                 player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
                 
+                # Check for void death - instant respawn
+                if player.fell_into_void:
+                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                    tension_duration = 0.0
+                    overload_timer = 0.0
+                    forced_black_mode_timer = 0.0
+                    scroll_x = 0
+                    scroll_y = 0
+                    transition_active = False
+                    continue  # Skip rest of update this frame
+                
                 # Projectile Logic
                 for proj in projectiles[:]:
                     proj.update(offset=camera_offset)

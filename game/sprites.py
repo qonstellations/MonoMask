@@ -30,6 +30,9 @@ class Player:
         self.aim_angle = 0.0 # Radians
         self.shake_intensity = 0.0
         
+        # Death State
+        self.fell_into_void = False
+        
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
@@ -181,10 +184,9 @@ class Player:
         # if self.x < 0: self.x = 0
         # if self.x + self.width > SCREEN_WIDTH: ...
         
-        # Respawn if WAY too low
-        if self.y > 3000: # Arbitrary "abyss" limit
-             self.y = 100
-             self.vel_y = 0
+        # Void death check
+        if self.y > 3000: # Fell into the abyss
+            self.fell_into_void = True
     
         
     def draw(self, screen, camera=None, offset=(0,0)):
