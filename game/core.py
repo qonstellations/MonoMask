@@ -10,12 +10,33 @@ from .enemy import MirrorRonin
 def run():
     # Initialize Pygame
     pygame.init()
+    pygame.mixer.init()  # Initialize audio mixer
 
     # Game setup
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("MonoMask")
     pygame.mouse.set_visible(False) # Hide system cursor, use in-game reticle
     clock = pygame.time.Clock()
+    
+    # Load Peace Mode Music
+    try:
+        pygame.mixer.music.load("assets/Drifting Memories.mp3")
+        pygame.mixer.music.set_volume(0.5)  # 50% volume
+        music_loaded = True
+    except:
+        print("Warning: Could not load peace mode music")
+        music_loaded = False
+    
+    # Load Mode Switch Sound Effect
+    try:
+        shadow_sound = pygame.mixer.Sound("assets/shadow.mp3")
+        shadow_sound.set_volume(0.7)  # 70% volume
+    except:
+        print("Warning: Could not load shadow sound effect")
+        shadow_sound = None
+    
+    # Music state
+    music_playing = False
     
     # Initialize Background
     background = ParallaxBackground()
@@ -326,6 +347,22 @@ def run():
                 
                 # Update Background Parallax
                 background.update(player.vel_x)
+                
+                # Music Control - Play only in Peace Mode
+                if music_loaded:
+                    if player.is_white:
+                        # Check if music should be playing but stopped
+                        if not pygame.mixer.music.get_busy():
+                            # Start/restart peace music (loop infinitely)
+                            pygame.mixer.music.play(-1)
+                            music_playing = True
+                    elif music_playing:
+                        # Fade out music when entering tension mode
+                        pygame.mixer.music.fadeout(500)  # 500ms fade
+                        music_playing = False
+                        # Play shadow sound effect as mode switch indicator
+                        if shadow_sound:
+                            shadow_sound.play()
 
                 # Tension Logic based on state
                 active_ronins = 0
