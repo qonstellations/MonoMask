@@ -732,6 +732,8 @@ class Projectile:
     def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True):
         self.x = x
         self.y = y
+        self.start_x = x  # Track starting position
+        self.start_y = y
         self.vx = vx
         self.vy = vy
         self.radius = 5
@@ -748,6 +750,9 @@ class Projectile:
         self.marked_for_deletion = False
         self.timer = 0
         
+        # Max travel distance (prevents sniping from across the map)
+        self.max_distance = 400  # Pixels
+        
         # Dynamic shape seed
         self.seed = random.random() * 100
     
@@ -755,6 +760,14 @@ class Projectile:
         self.x += self.vx
         self.y += self.vy
         self.timer += 0.2
+        
+        # Check distance traveled
+        dx = self.x - self.start_x
+        dy = self.y - self.start_y
+        distance = (dx * dx + dy * dy) ** 0.5
+        if distance > self.max_distance:
+            self.marked_for_deletion = True
+            return
         
         ox, oy = offset
         # Bounds check (Relative to Camera View)

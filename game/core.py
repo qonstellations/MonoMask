@@ -123,7 +123,13 @@ def run():
         last_plat = platforms_data[-1]
         enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25  # Center of platform
         enemy_y = last_plat['y'] - 60  # Above platform
-        enemies = [MirrorRonin(enemy_x, enemy_y)]
+        
+        # Spawn enemy on the big middle platform (index 7 - the 1500-wide neutral)
+        middle_plat = platforms_data[7]  # {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'}
+        middle_enemy_x = middle_plat['x'] + middle_plat['w'] // 2 - 25
+        middle_enemy_y = middle_plat['y'] - 60
+        
+        enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
         
         projectiles = []
         effects = []

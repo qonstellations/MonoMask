@@ -146,8 +146,15 @@ class CrumbleEffect:
         
         for y in range(0, height, block_size):
             for x in range(0, width, block_size):
+                # Clamp block size to surface bounds
+                actual_w = min(block_size, width - x)
+                actual_h = min(block_size, height - y)
+                
+                if actual_w <= 0 or actual_h <= 0:
+                    continue
+                
                 # Capture block
-                rect = pygame.Rect(x, y, block_size, block_size)
+                rect = pygame.Rect(x, y, actual_w, actual_h)
                 block_surf = surface.subsurface(rect).copy()
                 
                 # Random velocity
