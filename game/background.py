@@ -87,27 +87,30 @@ class ParallaxBackground:
         self.scroll_near %= SCREEN_WIDTH
 
     def draw(self, surface):
-        # 1. Base Layer (Static)
-        surface.blit(self.base_bg, (0, 0))
+        # Get actual surface dimensions
+        surf_w, surf_h = surface.get_size()
         
-        # Helper to tile horizontally
+        # 1. Base Layer (Fill entire surface)
+        surface.fill((245, 245, 245)) # Very light grey/white smoke color
+        
+        # Helper to tile horizontally with dynamic scaling
         def draw_tiled(img, scroll_x):
             if img:
-                # scroll_x is [0, WIDTH) due to modulo
-                # We draw at scroll_x and scroll_x - WIDTH to ensure coverage as we scroll left/right
+                # Scale image to surface size if needed
+                img_w, img_h = img.get_size()
+                if img_w != surf_w or img_h != surf_h:
+                    scaled_img = pygame.transform.smoothscale(img, (surf_w, surf_h))
+                else:
+                    scaled_img = img
                 
-                # Logic:
-                # If scroll is 0, we draw at 0 and -Width (invisible)
-                # If scroll is 100, we draw at 100 and -1180.
-                
-                # Actually, standard way:
-                # x1 = scroll_x
-                # x2 = scroll_x - SCREEN_WIDTH
+                # Normalize scroll to new width
+                normalized_scroll = (scroll_x / SCREEN_WIDTH) * surf_w
+                normalized_scroll = normalized_scroll % surf_w
                 
                 # Draw at x1
-                surface.blit(img, (scroll_x, 0))
+                surface.blit(scaled_img, (normalized_scroll, 0))
                 # Draw at x2 (Left side filler)
-                surface.blit(img, (scroll_x - SCREEN_WIDTH, 0))
+                surface.blit(scaled_img, (normalized_scroll - surf_w, 0))
 
         # 2. Cloud Layers
         draw_tiled(self.cloud_far, self.scroll_far)

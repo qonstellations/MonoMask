@@ -132,11 +132,15 @@ def run():
     
     # Pause Menu State
     paused = False
+    menu_state = "PAUSE" # PAUSE, OPTIONS
     pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
+    options_menu_options = ["Toggle Fullscreen", "Back"]
     pause_selected = 0  # Currently highlighted option
     
     # Camera
     # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+    
+    is_fullscreen = False
     
     # Surfaces
     canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Used for final compositing
@@ -172,39 +176,71 @@ def run():
                         transition_active = False
                 else:
                     # ESC Key - Toggle Pause Menu
+                    # ESC Key - Toggle Pause Menu
                     if event.key == pygame.K_ESCAPE:
-                        paused = not paused
-                        pause_selected = 0  # Reset selection
+                        if menu_state == "OPTIONS":
+                            menu_state = "PAUSE"
+                            pause_selected = 0
+                        else:
+                            paused = not paused
+                            menu_state = "PAUSE"
+                            pause_selected = 0  # Reset selection
                     
                     # Pause Menu Navigation
                     elif paused:
+                        # Shared Navigation
+                        num_options = len(pause_menu_options) if menu_state == "PAUSE" else len(options_menu_options)
+                        
                         if event.key == pygame.K_UP or event.key == pygame.K_w:
-                            pause_selected = (pause_selected - 1) % len(pause_menu_options)
+                            pause_selected = (pause_selected - 1) % num_options
                         elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                            pause_selected = (pause_selected + 1) % len(pause_menu_options)
+                            pause_selected = (pause_selected + 1) % num_options
                         elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
                             # Execute selected option
-                            selected_option = pause_menu_options[pause_selected]
-                            if selected_option == "Continue":
-                                paused = False
-                            elif selected_option == "Restart":
-                                player, platforms, spikes, projectiles, effects, enemies = reset_game()
-                                tension_duration = 0.0
-                                overload_timer = 0.0
-                                forced_black_mode_timer = 0.0
-                                scroll_x = 0
-                                scroll_y = 0
-                                game_over = False
-                                crumble_effect = None
-                                transition_active = False
-                                paused = False
-                            elif selected_option == "Options":
-                                # TODO: Implement options menu
-                                pass
-                            elif selected_option == "Main Menu":
-                                # Return to main menu (exit run() function)
-                                pygame.quit()
-                                return "main_menu"
+                            
+                            if menu_state == "PAUSE":
+                                selected_option = pause_menu_options[pause_selected]
+                                if selected_option == "Continue":
+                                    paused = False
+                                elif selected_option == "Restart":
+                                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                                    tension_duration = 0.0
+                                    overload_timer = 0.0
+                                    forced_black_mode_timer = 0.0
+                                    scroll_x = 0
+                                    scroll_y = 0
+                                    game_over = False
+                                    crumble_effect = None
+                                    transition_active = False
+                                    paused = False
+                                elif selected_option == "Options":
+                                    menu_state = "OPTIONS"
+                                    pause_selected = 0
+                                elif selected_option == "Main Menu":
+                                    pygame.quit()
+                                    return "main_menu"
+                                    
+                            elif menu_state == "OPTIONS":
+                                selected_option = options_menu_options[pause_selected]
+                                if selected_option == "Toggle Fullscreen":
+                                    # Toggle Logic
+                                    is_fullscreen = not is_fullscreen
+                                    if is_fullscreen:
+                                        # Native Fullscreen
+                                        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                                    else:
+                                        # Windowed Default
+                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+                                    
+                                    # Recreate surfaces at new resolution
+                                    new_w, new_h = screen.get_size()
+                                    canvas = pygame.Surface((new_w, new_h))
+                                    old_screen_capture = pygame.Surface((new_w, new_h))
+                                    next_state_capture = pygame.Surface((new_w, new_h))
+                                    
+                                elif selected_option == "Back":
+                                    menu_state = "PAUSE"
+                                    pause_selected = 0
                     
                     # Only process game inputs if NOT paused
                     elif not paused:
@@ -348,14 +384,15 @@ def run():
             
             # Camera Logic
             # Goal: Center player.
-            target_scroll_x = player.x - SCREEN_WIDTH / 2 + player.width / 2
+            current_sw, current_sh = screen.get_size()
+            target_scroll_x = player.x - current_sw / 2 + player.width / 2
             
             # Smooth scroll (Lerp)
             # Smooth scroll (Lerp)
             scroll_x += (target_scroll_x - scroll_x) * 0.1
             
             # Vertical Scroll (Fix for AIMING / Drawing offscreen)
-            target_scroll_y = player.y - SCREEN_HEIGHT / 2 + player.height / 2
+            target_scroll_y = player.y - current_sh / 2 + player.height / 2
             scroll_y += (target_scroll_y - scroll_y) * 0.1
             
             # Clamp scroll (Prevent seeing left of 0)
@@ -370,8 +407,11 @@ def run():
             
             camera_offset = (int(scroll_x), int(scroll_y))
             
+            # Mouse position - no scaling needed since canvas is at native resolution
+            mouse_pos_canvas = pygame.mouse.get_pos()
+            
             # Update logic
-            player.update(platforms, offset=camera_offset)
+            player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas)
             
             # Projectile Logic
             for proj in projectiles[:]:
@@ -542,7 +582,8 @@ def run():
                 draw_distortion(next_state_capture, intensity)
                 
                 # 2. Prepare Mask
-                mask_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                mask_w, mask_h = canvas.get_size()
+                mask_surf = pygame.Surface((mask_w, mask_h), pygame.SRCALPHA)
                 pygame.draw.circle(mask_surf, (255, 255, 255, 255), transition_center, int(transition_radius))
                 
                 # 3. Mask the NEW state
@@ -577,6 +618,8 @@ def run():
             # Fill with current BG color to hide borders if shake exposes them
             current_bg = CREAM if player.is_white else BLACK_MATTE
             screen.fill(current_bg) 
+            
+            # Canvas is now at native resolution, no scaling needed
             screen.blit(canvas, (shake_x, shake_y))
             
             # DEBUG HUD
@@ -590,46 +633,45 @@ def run():
             if forced_black_mode_timer > 0:
                  f_font = pygame.font.Font(None, 40)
                  alert = f_font.render(f"LOCKED IN RAGE: {forced_black_mode_timer:.1f}s", True, WHITE)
-                 screen.blit(alert, (SCREEN_WIDTH//2 - 100, 100))
-            
-            # Pause Menu Overlay
+                 screen.blit(alert, (SCREEN_WIDTH//2 - 150, 100))
+                 
+            # --- PAUSE MENU OVERLAY ---
             if paused:
-                # Semi-transparent dark overlay
-                overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                overlay.fill((0, 0, 0, 180))  # Dark with alpha
+                # Get actual screen dimensions
+                sw, sh = screen.get_size()
+                
+                # Dim the screen
+                overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, 180)) # Semi-transparent black
                 screen.blit(overlay, (0, 0))
                 
-                # Menu Title
-                title_font = pygame.font.Font(None, 72)
-                title_text = title_font.render("PAUSED", True, WHITE)
-                title_rect = title_text.get_rect(center=(SCREEN_WIDTH // 2, 150))
-                screen.blit(title_text, title_rect)
+                # Draw Menu
+                menu_font = pygame.font.Font(None, 50)
+                title_font = pygame.font.Font(None, 80)
                 
-                # Menu Options
-                option_font = pygame.font.Font(None, 48)
-                menu_start_y = 280
-                menu_spacing = 60
+                # Title
+                title_text = "PAUSED" if menu_state == "PAUSE" else "OPTIONS"
+                title_surf = title_font.render(title_text, True, WHITE)
+                screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
                 
-                for i, option in enumerate(pause_menu_options):
-                    if i == pause_selected:
-                        # Highlighted option
-                        color = (255, 200, 50)  # Gold/Yellow
-                        prefix = "> "
-                        suffix = " <"
-                    else:
-                        color = (200, 200, 200)  # Gray
-                        prefix = "  "
-                        suffix = "  "
+                # Options
+                options_to_draw = pause_menu_options if menu_state == "PAUSE" else options_menu_options
+                
+                start_y = 250
+                gap_y = 60
+                
+                for i, option in enumerate(options_to_draw):
+                    color = WHITE
+                    text = option
                     
-                    option_text = option_font.render(prefix + option + suffix, True, color)
-                    option_rect = option_text.get_rect(center=(SCREEN_WIDTH // 2, menu_start_y + i * menu_spacing))
-                    screen.blit(option_text, option_rect)
-                
-                # Controls hint
-                hint_font = pygame.font.Font(None, 28)
-                hint_text = hint_font.render("Use W/S or Arrow Keys to navigate, ENTER to select, ESC to resume", True, (150, 150, 150))
-                hint_rect = hint_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50))
-                screen.blit(hint_text, hint_rect)
+                    if i == pause_selected:
+                        color = (255, 200, 50) # Highlight Color (Gold)
+                        text = f"> {text} <"
+                        
+                    opt_surf = menu_font.render(text, True, color)
+                    screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
+            
+
             
         else:
             # Game Over State (Pixel Crumble)
