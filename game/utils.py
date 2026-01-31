@@ -1,29 +1,84 @@
 import pygame
-from .settings import *
 import random
+from .settings import *
+
+class Camera:
+    def __init__(self, width, height):
+        self.camera = pygame.Rect(0, 0, width, height)
+        self.width = width
+        self.height = height
+
+    def apply(self, entity):
+        """Returns a new Rect moved by the camera offset"""
+        return entity.get_rect().move(self.camera.topleft)
+
+    def apply_rect(self, rect):
+        """Returns a new Rect moved by the camera offset"""
+        return rect.move(self.camera.topleft)
+        
+    def apply_point(self, x, y):
+        """Returns (x, y) moved by the camera offset"""
+        return (int(x + self.camera.x), int(y + self.camera.y))
+
+    def update(self, target):
+        """Updates the camera to center on the target (player)"""
+        # We want the target to be at the center of the screen
+        x = -target.get_rect().centerx + int(SCREEN_WIDTH / 2)
+        y = -target.get_rect().centery + int(SCREEN_HEIGHT / 2)
+
+        # Smooth camera movement (Lerp)
+        # For now, instant snap or simple check
+        
+        # Limit scrolling to map size? 
+        # User implies "move in any direction" -> maybe infinite or very large?
+        # Let's keep it bounded to the map size for sanity, but map size will be huge.
+        # But here we just set the offset.
+        
+        # Simple lerp
+        self.camera = pygame.Rect(x, y, self.width, self.height)
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, spikes=None, camera=None):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
     
+    # Define an apply function that handles no-camera case safely
+    def apply_rect(rect):
+        if camera:
+            return camera.apply_rect(rect)
+        return rect
+        
     # Draw platforms
     for platform in platforms:
-        platform.draw(surface, is_white_mode)
-    
+        # We need a way to pass camera to platform.draw OR we manually apply camera here.
+        # Platform logic for drawing is complex (polygons).
+        # Best to pass camera to platform.draw or calculate offset points.
+        # Let's update Platform.draw to accept camera, or offset the context?
+        # Easier: Pass camera to draw()
+        platform.draw(surface, is_white_mode, camera)
+
+    # Draw spikes
+    if spikes:
+        for spike in spikes:
+            spike.draw(surface, is_white_mode, camera)
+            
     # Draw projectiles
     if projectiles:
         for proj in projectiles:
-            proj.draw(surface)
+            # Projectile draw is simple polygon/blob.
+            # We can just hacking pass offset?
+            # Or add draw(camera)
+            proj.draw(surface, camera)
             
     # Draw effects
     if effects:
         for eff in effects:
-            eff.draw(surface)
+            eff.draw(surface, camera)
     
     # Draw player
-    player.draw(surface)
+    player.draw(surface, camera)
+
     
     # Draw UI
     font = pygame.font.Font(None, 36)

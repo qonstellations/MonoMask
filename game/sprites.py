@@ -63,7 +63,7 @@ class Player:
         # Smoothly interpolate tension value
         target_tension = 0.0 if self.is_white else 1.0
         # Lerp factor (speed of transition)
-        lerp_speed = 0.05
+        lerp_speed = 0.5  # Very fast, still smooth transition
         self.tension_value += (target_tension - self.tension_value) * lerp_speed
         
         # Update Position History (Keep last 10 frames)
@@ -155,31 +155,35 @@ class Player:
                         self.y = platform_rect.bottom
                         self.vel_y = 0
         
-        # Keep player on screen (left/right)
-        if self.x < 0:
-            self.x = 0
-        if self.x + self.width > SCREEN_WIDTH:
-            self.x = SCREEN_WIDTH - self.width
+        # Move boundaries check REMOVED for camera
+        # if self.x < 0: self.x = 0
+        # if self.x + self.width > SCREEN_WIDTH: ...
         
-        # Fall off screen = game over (or respawn)
-        if self.y > SCREEN_HEIGHT:
-            self.y = 100
-            # self.x = 100
-            self.vel_y = 0
+        # Respawn if WAY too low
+        if self.y > 3000: # Arbitrary "abyss" limit
+             self.y = 100
+             self.vel_y = 0
     
-    def draw(self, screen):
+        
+    def draw(self, screen, camera=None):
         # Visual Config: Samurai Prototype (Standard Resolution)
         
         # Colors:
-        # Quiet (White Mode): Dark Samurai on White BG
-        # Tension (Black Mode): Light Samurai on Black BG
         fill_color = BLACK_MATTE if self.is_white else CREAM
         border_color = CREAM if self.is_white else BLACK_MATTE
         sword_color = GRAY
         
-        # Center coordinates
-        cx = self.x + self.width / 2
-        cy = self.y + self.height / 2
+        # Calculate Screen Position
+        # If camera exists, offset coordinates
+        if camera:
+            draw_pos = camera.apply_point(self.x, self.y)
+            draw_x, draw_y = draw_pos
+        else:
+            draw_x, draw_y = self.x, self.y
+            
+        # Update center coordinates based on DRAW position
+        cx = draw_x + self.width / 2
+        cy = draw_y + self.height / 2
         
         t = self.anim_timer
         tension = self.tension_value
@@ -294,15 +298,11 @@ class Player:
         pygame.draw.line(screen, border_color, bp1, bp2, 2)
         
         # --- AIM RETICLE ---
-        # Bubble Shooter styled reticle dot
-        # Only in Peace Mode (White)
         if self.is_white:
             aim_r = self.width * 1.0 # Radius from center
             reticle_x = cx + math.cos(self.aim_angle) * aim_r
             reticle_y = cy + math.sin(self.aim_angle) * aim_r
             
-            # Draw reticle
-            # Contrast with BG
             reticle_color = BLACK_MATTE
             pygame.draw.circle(screen, reticle_color, (int(reticle_x), int(reticle_y)), 3)
 
@@ -323,14 +323,13 @@ class Player:
             # Tension Mode: Drawn or Slashing
             if self.slash_timer > 0:
                 # SLASH ANIMATION
-                # A bright MAXIMIZED arc in direction of aim
-                slash_dist = 85 # Increased Range
-                start_angle = self.aim_angle - 0.8 # Wider Arc
+                slash_dist = 85 
+                start_angle = self.aim_angle - 0.8 
                 end_angle = self.aim_angle + 0.8
                 
                 # Draw Arc (as a set of lines)
                 arc_points = []
-                num_seg = 10 # Smoother
+                num_seg = 10 
                 for i in range(num_seg + 1):
                      prog = i / num_seg
                      ang = start_angle + (end_angle - start_angle) * prog
@@ -340,21 +339,18 @@ class Player:
                      ay = cy + math.sin(ang) * (slash_dist + r_offset)
                      arc_points.append((ax, ay))
                 
-                # Draw Swipe ("Rage" Swing)
-                pygame.draw.lines(screen, WHITE, False, arc_points, 8) # Thicker line
+                pygame.draw.lines(screen, WHITE, False, arc_points, 8) 
                 
                 # Draw Sword at end of swing state
-                sword_x = cx + math.cos(end_angle) * 60 # Sword extends out
+                sword_x = cx + math.cos(end_angle) * 60 
                 sword_y = cy + math.sin(end_angle) * 60
                 pygame.draw.line(screen, sword_color, (cx, cy), (sword_x, sword_y), 4)
                 
             else:
-                # READY POSE (Drawn)
-                # Sword held out slightly
+                # READY POSE
                 hand_x = cx + (20 * dir_x)
                 hand_y = shoulder_y + 15
                 
-                # Tip points forward/down
                 tip_x = hand_x + (30 * dir_x)
                 tip_y = hand_y + 10
                 
@@ -419,37 +415,253 @@ class Platform:
         self.height = height
         self.is_white = is_white
         self.is_neutral = is_neutral
-    
+        
+        # Floating Island Visuals
+        self.island_points = []
+        self.trees = [] 
+        self.grass_lines = []
+        self.hatch_lines = []
+        
+        self._generate_island_shape()
+        self._generate_trees()
+        self._generate_details()
+
+    def _generate_details(self):
+        """Generates grass and shading details for the sketch look"""
+        # 1. Grass (Top edge)
+        self.grass_lines = []
+        if self.width > 20:
+            num_grass = int(self.width / 5)
+            for i in range(num_grass):
+                gx = self.x + random.randint(0, self.width)
+                gh = random.randint(3, 8)
+                # Random tilt
+                tilt = random.randint(-2, 2)
+                self.grass_lines.append(((gx, self.y), (gx + tilt, self.y - gh)))
+                
+        # 2. Hatching (Shading inside)
+        self.hatch_lines = []
+        # Diagonal lines from bottom-left to top-right coverage
+        # We generally want them near the bottom/shadowed areas
+        # Simple bounding box hatching for now, masked by polygon later if needed?
+        # Let's just add random "scratch" lines inside the body
+        num_scratches = int(self.width * self.height / 500)
+        for _ in range(num_scratches):
+            sx = random.uniform(self.x + 5, self.x + self.width - 5)
+            sy = random.uniform(self.y + 5, self.y + self.height * 1.5) # Allow going deep
+            length = random.uniform(5, 15)
+            
+            # constrain roughly to shape?
+            # For now just random scratches
+            p1 = (sx, sy)
+            p2 = (sx + length, sy - length) # Diagonal /
+            self.hatch_lines.append((p1, p2))
+
+    def _generate_trees(self):
+        """Generates silhouette trees/bushes on top of the platform"""
+        self.trees = []
+        
+        # Chance to have trees
+        if random.random() < 0.3: return
+        
+        num_trees = random.randint(1, 3)
+        for _ in range(num_trees):
+            tx = random.uniform(self.x + 10, self.x + self.width - 10)
+            th = random.uniform(30, 80) # Tree height
+            
+            # Build recursive branches
+            def make_branch(x, y, h, angle, depth):
+                if depth == 0: return []
+                
+                # End point
+                ex = x + math.cos(angle) * h
+                ey = y + math.sin(angle) * h
+                
+                branches = [{'p1': (x,y), 'p2': (ex,ey), 'w': max(1, depth)}]
+                
+                # Split
+                if depth > 1:
+                    # 2 branches
+                    angle1 = angle - random.uniform(0.3, 0.8)
+                    angle2 = angle + random.uniform(0.3, 0.8)
+                    h_next = h * 0.7
+                    
+                    branches.extend(make_branch(ex, ey, h_next, angle1, depth - 1))
+                    branches.extend(make_branch(ex, ey, h_next, angle2, depth - 1))
+                    
+                return branches
+                
+            # Trunk up
+            tree_struct = make_branch(tx, self.y, th, -math.pi/2, 3) # Upwards
+            self.trees.append(tree_struct)
+
+    def _generate_island_shape(self):
+        """Generates the jagged bottom for the floating island look"""
+        self.island_points = []
+        
+        # Top surface (flat)
+        # self.island_points.append((self.x, self.y)) # Top-Left
+        # self.island_points.append((self.x + self.width, self.y)) # Top-Right
+        
+        # Bottom jagged edge
+        # We start from Top-Right and go down/left back to Top-Left
+        
+        # Right Side (tapering down)
+        depth = self.height * 1.5 # How deep the island goes
+        if depth < 20: depth = 20
+        
+        # Bottom Points
+        num_points = int(self.width / 15) # Density of jags
+        if num_points < 3: num_points = 3
+        
+        center_x = self.x + self.width / 2
+        
+        # Generate points along the bottom
+        for i in range(num_points + 1):
+            # 0 to 1
+            t = i / num_points
+            
+            # X coordinate: goes from Right (x+w) to Left (x)
+            current_x = (self.x + self.width) - (self.width * t)
+            
+            # Y coordinate: parabolic curve + noise
+            # Curve: Deepest in middle
+            dist_from_center = abs(current_x - center_x) / (self.width / 2) # 0 (center) to 1 (edge)
+            base_y = self.y + depth * (1.0 - dist_from_center * 0.5) 
+            
+            # Noise
+            jitter_y = random.uniform(-5, 15)
+            # Taper edges
+            if dist_from_center > 0.8:
+                base_y = self.y + random.uniform(5, 15) # Near top
+            
+            current_y = base_y + jitter_y
+            self.island_points.append((current_x, current_y))
+            
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
-    def draw(self, screen, is_white_mode):
-        if self.is_neutral:
-            color = GRAY
-            # Neutral is always filled/active
-            pygame.draw.rect(screen, color, self.get_rect())
+    def draw(self, screen, is_white_mode, camera=None):
+        # SKETCH STYLE DRAWING
+        
+        # Visibility check
+        should_be_active = self.is_neutral or (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
+        
+        # For Sketch style:
+        # If NOT active, maybe we draw it faint/dotted? 
+        # Or stick to invisible. Let's stick to invisible for clarity.
+        if not should_be_active:
             return
 
-        # Platform drawing depends on mode
-        # Logic: "Like lands on Like"
-        should_be_active = (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
-        
-        # Visuals: Invert for contrast
-        # BG is White (Peace) -> Active elements should be BLACK
-        # BG is Black (Tension) -> Active elements should be WHITE
-        active_color = BLACK if is_white_mode else WHITE
-        
-        if should_be_active:
-            # Active: Contrast with BG (Black on White, or White on Black)
-            # Actually user requested: "invisible and only be able to see the platforms of the current dimension"
-            # And user didn't specify platform style, but let's stick to High Contrast for them so they are visible?
-            # User said prev: "Active elements contrast with BG".
-            # Let's keep Active platforms Solid Contrast (Black on White BG).
-            
-            pygame.draw.rect(screen, active_color, self.get_rect())
+        # Colors
+        # Neutral platforms: Always GRAY (safe zones)
+        # Regular platforms: Black on White (Peace) or White on Black (Tension)
+        if self.is_neutral:
+            ink_color = (100, 100, 100)  # Dark gray outline
+            fill_color = (180, 180, 180)  # Light gray fill
+        elif is_white_mode:
+            ink_color = BLACK_MATTE
+            fill_color = CREAM # Paper color
         else:
-            # Inactive: Completely Invisible
-            pass
+            ink_color = CREAM
+            fill_color = BLACK_MATTE
+            
+        # Helper for camera apply
+        def apply_pt(pt):
+            if camera: return camera.apply_point(pt[0], pt[1])
+            return pt
+            
+        # 1. Define Visual Polygon (Top + Jagged Bottom)
+        # Top-Left, Top-Right
+        tl = (self.x, self.y)
+        tr = (self.x + self.width, self.y)
+        
+        # Combine into closed loop
+        raw_poly = [tl, tr] + self.island_points
+        
+        # Apply Camera
+        poly_points = [apply_pt(p) for p in raw_poly]
+        
+        # 2. Draw Fill (Opaque background to hide things behind)
+        pygame.draw.polygon(screen, fill_color, poly_points)
+        
+        # 3. Draw Outline (Ink)
+        pygame.draw.polygon(screen, ink_color, poly_points, 3) # Thickish pencil line
+        
+        # 4. Draw Details (Grass)
+        for g in self.grass_lines:
+            gp1 = apply_pt(g[0])
+            gp2 = apply_pt(g[1])
+            pygame.draw.line(screen, ink_color, gp1, gp2, 2)
+            
+        # 5. Draw Texture (Hatching)
+        # Only draw if inside polygon? simple check: y > self.y
+        for h in self.hatch_lines:
+            hp1 = apply_pt(h[0])
+            hp2 = apply_pt(h[1])
+            # Simple Y check to keep "under" surface
+            if h[0][1] >= self.y and h[1][1] >= self.y:
+                pygame.draw.line(screen, ink_color, hp1, hp2, 1)
+
+        # 6. Draw Trees
+        # Trees should match ink color
+        for tree_parts in self.trees:
+            for branch in tree_parts:
+                p1 = apply_pt(branch['p1'])
+                p2 = apply_pt(branch['p2'])
+                # Tree style: varying width
+                w = branch['w']
+                pygame.draw.line(screen, ink_color, p1, p2, w)
+                
+                # Leaf/Bush details at ends?
+                if 'w' in branch and branch['w'] <= 1:
+                     # Draw little sketchy circle/leaves
+                     pygame.draw.circle(screen, ink_color, (int(p2[0]), int(p2[1])), 2)
+
+class Spike:
+    def __init__(self, x, y, width=30, height=30, is_white=True, is_neutral=False):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.is_white = is_white
+        self.is_neutral = is_neutral
+        
+        # Generate jagged spike triangle shape
+        self.points = []
+        self._generate_shape()
+        
+    def _generate_shape(self):
+        # Assumes pointing UP for now
+        # Base is at y + height
+        # Tip is at y
+        
+        # Simple Triangle
+        p1 = (self.x, self.y + self.height) # Bottom Left
+        p2 = (self.x + self.width, self.y + self.height) # Bottom Right
+        p3 = (self.x + self.width / 2, self.y) # Top Center (Tip)
+        
+        self.points = [p1, p3, p2]
+        
+    def get_rect(self):
+        # Hitbox (smaller than visual)
+        return pygame.Rect(self.x + 5, self.y + 10, self.width - 10, self.height - 10)
+        
+    def draw(self, screen, is_white_mode, camera=None):
+        # Similar visibility rules to Platforms
+        should_be_active = self.is_neutral or (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
+        
+        if not should_be_active:
+            return
+            
+        # Color Logic
+        color = RED if is_white_mode else (255, 50, 50) # Red warning color
+        
+        draw_pts = self.points
+        if camera:
+            draw_pts = [camera.apply_point(p[0], p[1]) for p in self.points]
+            
+        pygame.draw.polygon(screen, color, draw_pts)
 
 class Projectile:
     def __init__(self, x, y, vx, vy, is_white_source):
@@ -480,7 +692,7 @@ class Projectile:
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
-    def draw(self, screen):
+    def draw(self, screen, camera=None):
         # Draw a wobbly blob
         num_points = 20
         points = []
@@ -499,6 +711,10 @@ class Projectile:
             px = cx + math.cos(angle) * r
             py = cy + math.sin(angle) * r
             points.append((px, py))
+            
+        # Apply camera
+        if camera:
+            points = [camera.apply_point(p[0], p[1]) for p in points]
             
         pygame.draw.polygon(screen, self.color, points)
         
@@ -565,13 +781,16 @@ class SplatBlast:
             # Shrink
             p['size'] *= p['decay']
             
-    def draw(self, screen):
+    def draw(self, screen, camera=None):
         for p in self.particles:
             if p['size'] < 1:
                 continue
             
             draw_x = self.x + p['x']
             draw_y = self.y + p['y']
+            
+            if camera:
+                draw_x, draw_y = camera.apply_point(draw_x, draw_y)
             
             # Draw circle or maybe a small polygon for jaggedness?
             # Circle is "fluid" enough
@@ -592,7 +811,7 @@ class SlashWave:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
         
-    def draw(self, screen):
+    def draw(self, screen, camera=None):
         # Draw a "Distorted Wavefront" (Semi-circle with noise)
         
         # 1. Define curvature
@@ -635,4 +854,7 @@ class SlashWave:
             points.append((px, py))
             
         if len(points) > 1:
+            if camera:
+                points = [camera.apply_point(p[0], p[1]) for p in points]
+                
             pygame.draw.lines(screen, WHITE, False, points, 3)
