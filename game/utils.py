@@ -3,29 +3,35 @@ from .settings import *
 import random
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None):
+# Helper function to draw the game state
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, enemies=None, offset=(0,0)):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
     
     # Draw platforms
     for platform in platforms:
-        platform.draw(surface, is_white_mode)
+        platform.draw(surface, is_white_mode, offset)
     
+    # Draw enemies
+    if enemies:
+        for enemy in enemies:
+            enemy.draw(surface, is_white_mode, offset)
+
     # Draw projectiles
     if projectiles:
         for proj in projectiles:
-            proj.draw(surface)
+            proj.draw(surface, offset)
             
     # Draw effects
     if effects:
         for eff in effects:
-            eff.draw(surface)
+            eff.draw(surface, offset)
     
     # Draw player
-    player.draw(surface)
+    player.draw(surface, offset)
     
-    # Draw UI
+    # Draw UI (Fixed on screen, NO OFFSET)
     font = pygame.font.Font(None, 36)
     # Text color inverse of background
     text_color = BLACK if is_white_mode else WHITE
@@ -33,6 +39,9 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
     text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
     surface.blit(text, (10, 10))
+    
+    # Optional: Visual warning for drain
+    # Can't access logic state here easily without passing it, but good enough for now.
     
     info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
     surface.blit(info_text, (10, 50))

@@ -2,8 +2,9 @@ import pygame
 import sys
 import random
 from .settings import *
-from .sprites import Player, Platform, SplatBlast
+from .sprites import Player, Platform, Projectile, SplatBlast, SlashWave
 from .utils import draw_game, draw_distortion, CrumbleEffect
+from .enemy import MirrorRonin
 
 def run():
     # Initialize Pygame
@@ -18,35 +19,28 @@ def run():
         # Create player (starts as WHITE character)
         player = Player(100, 100)
     
-        # Create platforms for "Level 1"
+        # Create platforms for "Level 1" - Expanded for Side Scrolling
         platforms = [
-            # 1. Start Zone (Safe)
-            Platform(50, 600, 200, 30, is_neutral=True),
-            
-            # 2. The "White" Path (Must be White)
-            Platform(300, 550, 150, 30, is_white=True),
-            
-            # 3. The "Black" Step (Must swap to Black)
-            Platform(500, 450, 150, 30, is_white=False),
-            
-            # 4. Mid-air Swap Challenge
-            Platform(700, 350, 150, 30, is_white=True),
-            
-            # 5. The "Neutral" Rest Stop
-            Platform(900, 250, 100, 30, is_neutral=True),
-            
-            # 6. Final Leap (Requires Black)
-            Platform(1100, 150, 150, 30, is_white=False),
-            
-            # 7. GOAL Platform (Neutral, high up)
-            Platform(900, 50, 300, 30, is_neutral=True),
+            # 1. Start Zone
+            Platform(0, 600, 1280, 600, is_neutral=True),
+            # 2. Extended Path
+            Platform(1400, 500, 500, 50, is_white=True), # Peace Bridge
+            Platform(2000, 400, 500, 50, is_white=False), # Tension Bridge
+            # 3. Far Landing
+            Platform(2600, 600, 1000, 600, is_neutral=True),
+        ]
+        
+        # Enemies (Spawn further out)
+        enemies = [
+            MirrorRonin(800, 550), # One near start
+            MirrorRonin(2800, 550) # One far away
         ]
         
         projectiles = []
         effects = []
-        return player, platforms, projectiles, effects
+        return player, platforms, projectiles, effects, enemies
 
-    player, platforms, projectiles, effects = reset_game()
+    player, platforms, projectiles, effects, enemies = reset_game()
 
     # Main game loop
     running = True
@@ -56,6 +50,13 @@ def run():
     overload_timer = 0.0
     game_over = False
     crumble_effect = None
+    
+    # Forced Mode State (Mental Drain)
+    forced_black_mode_timer = 0.0
+    
+    # Camera State
+    scroll_x = 0
+    scroll_y = 0 # No vertical scroll yet
     
     # Transition State
     transition_active = False
@@ -72,6 +73,12 @@ def run():
     while running:
         dt = clock.tick(FPS) / 1000.0
         
+        # Update Forced Timer
+        if forced_black_mode_timer > 0:
+            forced_black_mode_timer -= dt
+            if forced_black_mode_timer < 0:
+                forced_black_mode_timer = 0
+        
         # Toggle Input Logic
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -80,28 +87,42 @@ def run():
                 if game_over:
                     if event.key == pygame.K_r:
                         # Restart
-                        player, platforms, projectiles, effects = reset_game()
+                        player, platforms, projectiles, effects, enemies = reset_game()
                         tension_duration = 0.0
                         overload_timer = 0.0
+                        forced_black_mode_timer = 0.0
+                        scroll_x = 0
+                        scroll_y = 0
                         game_over = False
                         crumble_effect = None
                         transition_active = False
                 else:
                     if event.key == pygame.K_e or event.key == pygame.K_LSHIFT or event.key == pygame.K_RSHIFT:
-                        if not transition_active:
+                        # Prevent Swap if Forced
+                        if forced_black_mode_timer > 0:
+                            # Play "Locked" sound or visual shake?
+                            # For now just ignore
+                            pass
+                        elif not transition_active:
                             # START TRANSITION
                             transition_active = True
                             transition_radius = 0
                             transition_center = getattr(player, 'get_rect', lambda: pygame.Rect(0,0,0,0))().center
                             
                             # Capture OLD state (including distortion)
-                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects)
+                            draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, enemies, offset=camera_offset)
                             # Note: We capture with current intensity
                             intensity = min(1.0, tension_duration / 12.0)
                             draw_distortion(old_screen_capture, intensity)
                             
                             # Perform Swap
                             player.swap_mask()
+                            
+                            # Sanity Reset: If switching to White (Calm), 
+                            # ensure tension is below the Forced Trigger (8.0)
+                            # otherwise it will instantly swap back next frame.
+                            if player.is_white:
+                                tension_duration = min(tension_duration, 7.0)
                             
                     # Shooting Input (Key: X)
                     if event.key == pygame.K_x:
@@ -125,37 +146,95 @@ def run():
         
         if not game_over:
             # Tension Logic based on state
+            # Initialize active_ronins for this frame to avoid stale data
+            active_ronins = 0
+            
             if not player.is_white: # Mask Off (Black/Tension)
                 tension_duration += dt
+                drain_status = "BUILDING (Black Mode)"
             else: # Mask On (White/Peace)
-                tension_duration -= dt * 10.0 # Fast Decay
+                # Check for "Mental Drain" from active enemies
+                for e in enemies:
+                    if isinstance(e, MirrorRonin) and not e.marked_for_deletion:
+                        dist = abs(e.x - player.x)
+                        if dist < 500: # Only drain if close (Proximity effect)
+                            active_ronins += 1
+                            
+                if active_ronins > 0:
+                    # Instead of decaying, we INCREASE tension
+                    # Reduced rate (0.4) as requested
+                    tension_duration += dt * 0.4 * active_ronins
+                    
+                    # Cap: Enemy alone cannot push past 8.0 (The Forced Trigger threshold)
+                    if tension_duration > 8.0:
+                        tension_duration = 8.0
+                        
+                    drain_status = "BUILDING (Enemy)"
+                else:
+                    # Normal Decay - FAST when enemies are dead
+                    drain_rate = 5.0 # Faster decay so player can recover
+                    tension_duration -= dt * drain_rate
+                    drain_status = f"DRAINING (Rate {drain_rate})"
                 
             # Clamp tension
-            tension_duration = max(0.0, tension_duration)
+            tension_duration = max(0.0, min(tension_duration, 12.0))
             
             # Calculate Intensity (0.0 to 1.0)
             intensity = min(1.0, tension_duration / 12.0)
             
-            # Overload Logic
-            if intensity >= 1.0:
+            # Forced Switch Logic (Trigger at 8.0 Tension, leaving 4.0 buffer)
+            if player.is_white and tension_duration >= 8.0:
+                 # TRIGGER FORCED SWITCH
+                 if not transition_active:
+                     transition_active = True
+                     transition_radius = 0
+                     transition_center = player.get_rect().center
+                     
+                     draw_game(old_screen_capture, player.is_white, player, platforms, projectiles, effects, enemies, offset=camera_offset)
+                     draw_distortion(old_screen_capture, intensity)
+                     
+                     player.swap_mask() # Forces to Black
+                     forced_black_mode_timer = 5.0 # Lock for 5s
+                     
+                     # Start at 8.0 (The Cap). 
+                     # Player has 4.0s of buffer before Overload (12.0). 
+                     # MUST KILL to survive.
+                     tension_duration = 8.0 
+                     
+            # Overload Logic (Only in Black Mode now, effectively)
+            if tension_duration >= 12.0 and not player.is_white:
                 overload_timer += dt
                 if overload_timer > 3.0:
                     game_over = True
             else:
                 overload_timer = 0.0
             
+            # Camera Logic
+            # Goal: Center player.
+            target_scroll_x = player.x - SCREEN_WIDTH / 2 + player.width / 2
+            
+            # Smooth scroll (Lerp)
+            scroll_x += (target_scroll_x - scroll_x) * 0.1
+            
+            # Clamp scroll (Prevent seeing left of 0)
+            if scroll_x < 0:
+                scroll_x = 0
+            
+            camera_offset = (int(scroll_x), int(scroll_y))
+            
             # Update logic
-            player.update(platforms)
+            player.update(platforms, offset=camera_offset)
             
             # Projectile Logic
             for proj in projectiles[:]:
-                proj.update()
+                proj.update(offset=camera_offset)
                 if proj.marked_for_deletion:
                     projectiles.remove(proj)
                     continue
                 
                 # Collision Check
-                proj_rect = proj.get_rect()
+                proj_rect = proj.get_rect() 
+                # Note: Projectiles are world space. Platforms are world space. Collision works fine.
                 hit = False
                 
                 for platform in platforms:
@@ -169,6 +248,26 @@ def run():
                 
                 if hit:
                     projectiles.remove(proj)
+                    continue
+
+                # Collision Check: Projectile vs Player
+                if not proj.is_player_shot:
+                    if proj.get_rect().colliderect(player.get_rect()):
+                        # Player Hit by Enemy Projectile
+                        projectiles.remove(proj)
+                        effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                        
+                        # Apply Damage (Similar to collision)
+                        tension_duration += 3.0 # Big spike for getting hit
+                        player.shake_intensity = 15.0
+                        
+                        # Knockback
+                        dx = player.x - proj.x
+                        if dx == 0: dx = 1
+                        direction = dx / abs(dx)
+                        player.vel_x = direction * 8
+                        player.vel_y = -4
+                        continue
 
             # Effects Logic
             for eff in effects[:]:
@@ -176,6 +275,70 @@ def run():
                 if eff.timer > eff.lifetime:
                     effects.remove(eff)
 
+            # Enemy Logic
+            for enemy in enemies[:]:
+                enemy.update(player, platforms, offset=camera_offset) # Wait, enemy.update typically needs world space.
+                if enemy.marked_for_deletion:
+                    enemies.remove(enemy)
+                    continue
+                
+                # Collision with Projectiles (White Mode)
+                enemy_rect = enemy.get_rect()
+                for proj in projectiles[:]:
+                    if proj.get_rect().colliderect(enemy_rect):
+                        # Only hurt if in White Mode (Doubt) and proj is from Player
+                        if player.is_white and proj.is_player_shot:
+                             enemy.take_damage("projectile")
+                             projectiles.remove(proj)
+                             effects.append(SplatBlast(proj.x, proj.y, proj.color))
+                        elif not proj.is_player_shot:
+                             # Enemy projectile hitting enemy -> Ignore
+                             pass
+                        else:
+                             # Player projectile hitting Black Mode enemy -> Deflect/Ignore
+                             pass
+                
+                # Collision with Melee (Black Mode)
+                # Only hurt if in Black Mode (Tension)
+                if not player.is_white:
+                    for eff in effects:
+                        if isinstance(eff, SlashWave): 
+                            if eff.check_collision(enemy.get_rect()):
+                                enemy.take_damage("melee")
+                                # Visual feedback?
+                                effects.append(SplatBlast(enemy.x, enemy.y, WHITE))
+                                
+                                # Heal Logic: Killing heals sanity/tension
+                                if enemy.health <= 0:
+                                    print("ENEMY KILLED! Healing Tension.")
+                                    enemy.marked_for_deletion = True # Ensure it's marked
+                                    tension_duration -= 5.0 # Restore Sanity!
+                                    tension_duration = max(0.0, tension_duration)
+                                    # Flash screen green? or just sound
+                                    
+                                break
+                
+                # Handle Enemy Projectiles
+                if hasattr(enemy, 'pending_projectiles') and enemy.pending_projectiles:
+                    projectiles.extend(enemy.pending_projectiles)
+                    enemy.pending_projectiles = []
+                    
+                # Enemy -> Player Collision (Attack)
+                if enemy.get_rect().colliderect(player.get_rect()):
+                    # Damage Logic: Tension Spike
+                    tension_duration += 2.0 # Spike tension!
+                    
+                    # Knockback
+                    dx = player.x - enemy.x
+                    if dx == 0: dx = 1
+                    direction = dx / abs(dx)
+                    player.vel_x = direction * 10
+                    player.vel_y = -5 # Pop up
+                    player.shake_intensity = 10.0
+                    
+                    # Optional: Invulnerability frame? For prototype, just spam check is fine (tension caps at 12 anyway)
+                    # But better to push enemy away too?
+                    enemy.vel_x = -direction * 10
             
             # Calculate Screen Shake
             shake_x = 0
@@ -201,7 +364,7 @@ def run():
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
-                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects)
+                draw_game(next_state_capture, player.is_white, player, platforms, projectiles, effects, enemies, offset=camera_offset)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
                 
@@ -226,7 +389,7 @@ def run():
                     transition_active = False
             else:
                 # Standard Draw
-                draw_game(canvas, player.is_white, player, platforms, projectiles, effects)
+                draw_game(canvas, player.is_white, player, platforms, projectiles, effects, enemies, offset=camera_offset)
                 draw_distortion(canvas, intensity)
 
             # Final Blit to Screen with Shake
@@ -234,6 +397,19 @@ def run():
             current_bg = CREAM if player.is_white else BLACK_MATTE
             screen.fill(current_bg) 
             screen.blit(canvas, (shake_x, shake_y))
+            
+            # DEBUG HUD
+            debug_font = pygame.font.Font(None, 24)
+            d_stat = locals().get('drain_status', 'N/A')
+            dbg_str = f"Tension: {tension_duration:.2f} | Active: {locals().get('active_ronins', '?')} | Status: {d_stat} | Global: {len(enemies)}"
+            dbg_text = debug_font.render(dbg_str, True, (0, 255, 0) if not player.is_white else (255, 0, 0))
+            screen.blit(dbg_text, (10, 80))
+            
+            # UI Overlays (Forced Mode Warning)
+            if forced_black_mode_timer > 0:
+                 f_font = pygame.font.Font(None, 40)
+                 alert = f_font.render(f"LOCKED IN RAGE: {forced_black_mode_timer:.1f}s", True, WHITE)
+                 screen.blit(alert, (SCREEN_WIDTH//2 - 100, 100))
             
         else:
             # Game Over State (Pixel Crumble)

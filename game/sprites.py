@@ -43,7 +43,8 @@ class Player:
         return (self.is_white and platform.is_white) or (not self.is_white and not platform.is_white)
     
     
-    def update(self, platforms):
+    def update(self, platforms, offset=(0,0)):
+        ox, oy = offset
         # Update animation timer
         self.anim_timer += 0.1
         
@@ -71,16 +72,20 @@ class Player:
         if len(self.pos_history) > 10:
             self.pos_history.pop(0)
 
-        # Mouse Aiming Logic
+        # Mouse Aiming Logic (Screen Space to World Space)
         mx, my = pygame.mouse.get_pos()
+        # Mouse World Pos
+        m_world_x = mx + ox
+        m_world_y = my + oy
+        
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2
         
         # Calculate angle to mouse
-        self.aim_angle = math.atan2(my - cy, mx - cx)
+        self.aim_angle = math.atan2(m_world_y - cy, m_world_x - cx)
         
         # Update Facing based on aim
-        if mx > cx:
+        if m_world_x > cx:
             self.facing = 1
         else:
             self.facing = -1
@@ -167,8 +172,9 @@ class Player:
             # self.x = 100
             self.vel_y = 0
     
-    def draw(self, screen):
+    def draw(self, screen, offset=(0,0)):
         # Visual Config: Samurai Prototype (Standard Resolution)
+        ox, oy = offset
         
         # Colors:
         # Quiet (White Mode): Dark Samurai on White BG
@@ -178,8 +184,8 @@ class Player:
         sword_color = GRAY
         
         # Center coordinates
-        cx = self.x + self.width / 2
-        cy = self.y + self.height / 2
+        cx = (self.x - ox) + self.width / 2
+        cy = (self.y - oy) + self.height / 2
         
         t = self.anim_timer
         tension = self.tension_value
@@ -423,11 +429,16 @@ class Platform:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
-    def draw(self, screen, is_white_mode):
+    def draw(self, screen, is_white_mode, offset=(0,0)):
+        ox, oy = offset
+        rect = self.get_rect()
+        rect.x -= ox
+        rect.y -= oy
+        
         if self.is_neutral:
             color = GRAY
             # Neutral is always filled/active
-            pygame.draw.rect(screen, color, self.get_rect())
+            pygame.draw.rect(screen, color, rect)
             return
 
         # Platform drawing depends on mode
@@ -441,50 +452,54 @@ class Platform:
         
         if should_be_active:
             # Active: Contrast with BG (Black on White, or White on Black)
-            # Actually user requested: "invisible and only be able to see the platforms of the current dimension"
-            # And user didn't specify platform style, but let's stick to High Contrast for them so they are visible?
-            # User said prev: "Active elements contrast with BG".
-            # Let's keep Active platforms Solid Contrast (Black on White BG).
-            
-            pygame.draw.rect(screen, active_color, self.get_rect())
-        else:
-            # Inactive: Completely Invisible
+            pygame.draw.rect(screen, active_color, rect)
+        # Inactive: Completely Invisible
             pass
 
 class Projectile:
-    def __init__(self, x, y, vx, vy, is_white_source):
+    def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True):
         self.x = x
         self.y = y
         self.vx = vx
         self.vy = vy
-        self.radius = 12
+        self.radius = 5
         # Color logic:
         # If source is White (Peace), Projectile is Dark (Black Matte)
         # If source is Black (Tension), Projectile is Light (Cream)
+        self.is_white_source = is_white_source # Determines color/affinity
+        self.is_player_shot = is_player_shot # Determines who it hurts
+        
+        # Color: If source is White(Peace), projectile is Black (Ink).
+        # If source is Black(Tension), projectile is White (Light).
         self.color = BLACK_MATTE if is_white_source else CREAM
-        self.timer = 0.0
+        
         self.marked_for_deletion = False
+        self.timer = 0
         
         # Dynamic shape seed
         self.seed = random.random() * 100
     
-    def update(self):
+    def update(self, offset=(0,0)):
         self.x += self.vx
         self.y += self.vy
         self.timer += 0.2
         
-        # Bounds check
-        if self.x < -100 or self.x > SCREEN_WIDTH + 100:
+        ox, oy = offset
+        # Bounds check (Relative to Camera View)
+        # If it goes off-screen, delete it.
+        # Screen view is from ox to ox + SCREEN_WIDTH
+        if self.x < ox - 100 or self.x > ox + SCREEN_WIDTH + 100:
             self.marked_for_deletion = True
             
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
-    def draw(self, screen):
+    def draw(self, screen, offset=(0,0)):
+        ox, oy = offset
         # Draw a wobbly blob
         num_points = 20
         points = []
-        cx, cy = self.x, self.y
+        cx, cy = self.x - ox, self.y - oy
         
         for i in range(num_points):
             angle = (i / num_points) * 2 * math.pi
@@ -565,13 +580,14 @@ class SplatBlast:
             # Shrink
             p['size'] *= p['decay']
             
-    def draw(self, screen):
+    def draw(self, screen, offset=(0,0)):
+        ox, oy = offset
         for p in self.particles:
             if p['size'] < 1:
                 continue
             
-            draw_x = self.x + p['x']
-            draw_y = self.y + p['y']
+            draw_x = (self.x - ox) + p['x']
+            draw_y = (self.y - oy) + p['y']
             
             # Draw circle or maybe a small polygon for jaggedness?
             # Circle is "fluid" enough
@@ -592,8 +608,9 @@ class SlashWave:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
         
-    def draw(self, screen):
+    def draw(self, screen, offset=(0,0)):
         # Draw a "Distorted Wavefront" (Semi-circle with noise)
+        ox, oy = offset
         
         # 1. Define curvature
         # The wave is 'bowed' out.
@@ -602,8 +619,8 @@ class SlashWave:
         
         # Center of the imaginary circle
         back_dist = radius
-        ccx = self.x - math.cos(self.angle) * back_dist
-        ccy = self.y - math.sin(self.angle) * back_dist
+        ccx = (self.x - ox) - math.cos(self.angle) * back_dist
+        ccy = (self.y - oy) - math.sin(self.angle) * back_dist
         
         # 2. Generate arc points
         points = []
@@ -636,3 +653,11 @@ class SlashWave:
             
         if len(points) > 1:
             pygame.draw.lines(screen, WHITE, False, points, 3)
+
+    def check_collision(self, rect):
+        # precise collision is hard for an arc, simplified to circle overlap
+        # Slash is approx 40-60 pixels in front.
+        # Let's say it's a point at (x,y) with radius 30?
+        slash_rect = pygame.Rect(self.x - 20, self.y - 20, 40, 40)
+        return slash_rect.colliderect(rect)
+
