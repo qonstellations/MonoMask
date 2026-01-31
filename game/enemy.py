@@ -1,0 +1,174 @@
+import pygame
+import math
+import random
+from .settings import *
+from .sprites import Projectile
+
+class MirrorRonin:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 50
+        self.vel_x = 0
+        self.vel_y = 0
+        self.speed_white = 1.5 # Flee speed (Slower, as requested)
+        self.speed_black = 3.5 # Chase speed (Reduced from 6)
+        self.gravity = 0.8
+        self.on_ground = False
+        
+        # Combat State
+        self.health = 3
+        self.marked_for_deletion = False
+        self.attack_timer = 0
+        self.facing = 1
+        
+        # Visual State
+        self.anim_timer = 0.0
+        
+        self.pending_projectiles = []
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def take_damage(self, source_type):
+        # White Mode (Peace) -> Vulnerable to Projectiles
+        # Black Mode (Tension) -> Vulnerable to Melee
+        if source_type == "projectile":
+             # In White Mode, taking damage is valid
+             self.health -= 1
+             # Knockback?
+        elif source_type == "melee":
+             self.health -= 1
+             
+        if self.health <= 0:
+            self.marked_for_deletion = True
+
+    def update(self, player, platforms, offset=(0,0)):
+        self.anim_timer += 0.1
+        self.on_ground = False
+        
+        # Basic Physics (Gravity)
+        self.vel_y += self.gravity
+        self.y += self.vel_y
+        
+        # Platform Collision (Vertical)
+        my_rect = self.get_rect()
+        for platform in platforms:
+            if platform.get_rect().colliderect(my_rect):
+                if self.vel_y > 0:
+                    self.y = platform.get_rect().top - self.height
+                    self.vel_y = 0
+                    self.on_ground = True
+        
+        # AI Logic
+        if player.is_white:
+            self.behavior_white(player)
+        else:
+            self.behavior_black(player)
+            
+        # Edge Detection (Don't fall off platforms)
+        if self.on_ground and self.vel_x != 0:
+            # Look ahead
+            look_ahead = 20 # Look a bit ahead of the center
+            if self.vel_x < 0:
+                check_x = self.x + self.vel_x
+            else:
+                check_x = self.x + self.width + self.vel_x
+                
+            # Check point below
+            check_point = (check_x, self.y + self.height + 2)
+            
+            ground_found = False
+            for platform in platforms:
+                if platform.get_rect().collidepoint(check_point):
+                    ground_found = True
+                    break
+            
+            if not ground_found:
+                self.vel_x = 0
+            
+        # Apply Horizontal Move
+        self.x += self.vel_x
+
+    def behavior_white(self, player):
+        # DOUBT: Evasive, Ranged
+        # Move AWAY from player if close
+        dist_x = self.x - player.x
+        
+        flee_distance = 450 # Keep a good distance
+        
+        if abs(dist_x) < flee_distance: 
+            if dist_x > 0: # Player is to left, Run Right
+                self.vel_x = self.speed_white
+            else: # Player is to right, Run Left
+                self.vel_x = -self.speed_white
+        else:
+            self.vel_x = 0
+            
+        # Face player always
+        self.facing = -1 if dist_x > 0 else 1
+        
+        # Attack Logic (Shoot tracking shard)
+        self.attack_timer += 1
+        if self.attack_timer > 120: # 2 seconds
+            self.attack_timer = 0
+            # Spawn Projectile logic
+            # Calculate angle to player
+            cx, cy = self.x + self.width/2, self.y + self.height/2
+            px, py = player.x + player.width/2, player.y + player.height/2
+            angle = math.atan2(py - cy, px - cx)
+            
+            speed = 8
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            # Enemy projectile
+            # is_white_source=True means it spawns as BLACK (Ink), which is what we want for the shadow enemy on white bg.
+            # is_player_shot=False ensures it doesn't hurt the enemy.
+            proj = Projectile(cx, cy, vx, vy, is_white_source=True, is_player_shot=False)
+            self.pending_projectiles.append(proj)
+
+    def behavior_black(self, player):
+        # RAGE: Aggressive, Melee
+        # Chase player
+        dist_x = self.x - player.x
+        
+        if abs(dist_x) > 40: # Get close
+            if dist_x > 0:
+                self.vel_x = -self.speed_black
+            else:
+                self.vel_x = self.speed_black
+        else:
+            self.vel_x = 0
+            # Attack!
+            # For now, just contact damage?
+            
+        # Face player
+        self.facing = -1 if dist_x > 0 else 1
+
+    def draw(self, screen, is_white_mode, offset=(0,0)):
+        ox, oy = offset
+        cx = (self.x - ox) + self.width / 2
+        cy = (self.y - oy) + self.height / 2
+        
+        if is_white_mode:
+            # White Mode: Shadow/Doubt (Glitchy Black Ghost)
+            color = (50, 50, 50, 150) # Semi transparent
+            # Draw Glitchy Rect
+            off_x = random.randint(-2, 2)
+            off_y = random.randint(-2, 2)
+            # Create a rect surface for transparency? or just rect
+            # standard rect handles alpha if surface has alpha? No, need surface.
+            # Simplified:
+            glitch_rect = pygame.Rect((self.x - ox) + off_x, (self.y - oy) + off_y, self.width, self.height)
+            s = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            s.fill(color)
+            screen.blit(s, glitch_rect)
+        else:
+            # Black Mode: Rage/Ronin (Solid White Samurai)
+            color = CREAM
+            rect = pygame.Rect(self.x - ox, self.y - oy, self.width, self.height)
+            pygame.draw.rect(screen, color, rect)
+            # Draw Red Eyes
+            eye_x = cx + (10 * self.facing)
+            pygame.draw.circle(screen, (255, 50, 50), (int(eye_x), int(cy - 10)), 3)

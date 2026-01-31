@@ -43,7 +43,8 @@ class Player:
         return (self.is_white and platform.is_white) or (not self.is_white and not platform.is_white)
     
     
-    def update(self, platforms):
+    def update(self, platforms, offset=(0,0)):
+        ox, oy = offset
         # Update animation timer
         self.anim_timer += 0.1
         
@@ -71,16 +72,20 @@ class Player:
         if len(self.pos_history) > 10:
             self.pos_history.pop(0)
 
-        # Mouse Aiming Logic
+        # Mouse Aiming Logic (Screen Space to World Space)
         mx, my = pygame.mouse.get_pos()
+        # Mouse World Pos
+        m_world_x = mx + ox
+        m_world_y = my + oy
+        
         cx = self.x + self.width / 2
         cy = self.y + self.height / 2
         
         # Calculate angle to mouse
-        self.aim_angle = math.atan2(my - cy, mx - cx)
+        self.aim_angle = math.atan2(m_world_y - cy, m_world_x - cx)
         
         # Update Facing based on aim
-        if mx > cx:
+        if m_world_x > cx:
             self.facing = 1
         else:
             self.facing = -1
@@ -165,8 +170,9 @@ class Player:
              self.vel_y = 0
     
         
-    def draw(self, screen, camera=None):
+    def draw(self, screen, camera=None, offset=(0,0)):
         # Visual Config: Samurai Prototype (Standard Resolution)
+        ox, oy = offset
         
         # Colors:
         fill_color = BLACK_MATTE if self.is_white else CREAM
@@ -541,7 +547,7 @@ class Platform:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
-    def draw(self, screen, is_white_mode, camera=None):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
         # SKETCH STYLE DRAWING
         
         # Visibility check
@@ -556,6 +562,11 @@ class Platform:
         # Colors
         # Neutral platforms: Always GRAY (safe zones)
         # Regular platforms: Black on White (Peace) or White on Black (Tension)
+        ox, oy = offset
+        rect = self.get_rect()
+        rect.x -= ox
+        rect.y -= oy
+        
         if self.is_neutral:
             ink_color = (100, 100, 100)  # Dark gray outline
             fill_color = (180, 180, 180)  # Light gray fill
@@ -664,39 +675,49 @@ class Spike:
         pygame.draw.polygon(screen, color, draw_pts)
 
 class Projectile:
-    def __init__(self, x, y, vx, vy, is_white_source):
+    def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True):
         self.x = x
         self.y = y
         self.vx = vx
         self.vy = vy
-        self.radius = 12
+        self.radius = 5
         # Color logic:
         # If source is White (Peace), Projectile is Dark (Black Matte)
         # If source is Black (Tension), Projectile is Light (Cream)
+        self.is_white_source = is_white_source # Determines color/affinity
+        self.is_player_shot = is_player_shot # Determines who it hurts
+        
+        # Color: If source is White(Peace), projectile is Black (Ink).
+        # If source is Black(Tension), projectile is White (Light).
         self.color = BLACK_MATTE if is_white_source else CREAM
-        self.timer = 0.0
+        
         self.marked_for_deletion = False
+        self.timer = 0
         
         # Dynamic shape seed
         self.seed = random.random() * 100
     
-    def update(self):
+    def update(self, offset=(0,0)):
         self.x += self.vx
         self.y += self.vy
         self.timer += 0.2
         
-        # Bounds check
-        if self.x < -100 or self.x > SCREEN_WIDTH + 100:
+        ox, oy = offset
+        # Bounds check (Relative to Camera View)
+        # If it goes off-screen, delete it.
+        # Screen view is from ox to ox + SCREEN_WIDTH
+        if self.x < ox - 100 or self.x > ox + SCREEN_WIDTH + 100:
             self.marked_for_deletion = True
             
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
-    def draw(self, screen, camera=None):
+    def draw(self, screen, camera=None, offset=(0,0)):
+        ox, oy = offset
         # Draw a wobbly blob
         num_points = 20
         points = []
-        cx, cy = self.x, self.y
+        cx, cy = self.x - ox, self.y - oy
         
         for i in range(num_points):
             angle = (i / num_points) * 2 * math.pi
@@ -781,13 +802,17 @@ class SplatBlast:
             # Shrink
             p['size'] *= p['decay']
             
-    def draw(self, screen, camera=None):
+    def draw(self, screen, camera=None, offset=(0,0)):
+        ox, oy = offset
         for p in self.particles:
             if p['size'] < 1:
                 continue
             
-            draw_x = self.x + p['x']
-            draw_y = self.y + p['y']
+            draw_x = (self.x - ox) + p['x']
+            draw_y = (self.y - oy) + p['y']
+            
+            if camera:
+                draw_x, draw_y = camera.apply_point(draw_x, draw_y)
             
             if camera:
                 draw_x, draw_y = camera.apply_point(draw_x, draw_y)
@@ -811,8 +836,9 @@ class SlashWave:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
         
-    def draw(self, screen, camera=None):
+    def draw(self, screen, camera=None, offset=(0,0)):
         # Draw a "Distorted Wavefront" (Semi-circle with noise)
+        ox, oy = offset
         
         # 1. Define curvature
         # The wave is 'bowed' out.
@@ -821,8 +847,8 @@ class SlashWave:
         
         # Center of the imaginary circle
         back_dist = radius
-        ccx = self.x - math.cos(self.angle) * back_dist
-        ccy = self.y - math.sin(self.angle) * back_dist
+        ccx = (self.x - ox) - math.cos(self.angle) * back_dist
+        ccy = (self.y - oy) - math.sin(self.angle) * back_dist
         
         # 2. Generate arc points
         points = []
@@ -858,3 +884,11 @@ class SlashWave:
                 points = [camera.apply_point(p[0], p[1]) for p in points]
                 
             pygame.draw.lines(screen, WHITE, False, points, 3)
+
+    def check_collision(self, rect):
+        # precise collision is hard for an arc, simplified to circle overlap
+        # Slash is approx 40-60 pixels in front.
+        # Let's say it's a point at (x,y) with radius 30?
+        slash_rect = pygame.Rect(self.x - 20, self.y - 20, 40, 40)
+        return slash_rect.colliderect(rect)
+

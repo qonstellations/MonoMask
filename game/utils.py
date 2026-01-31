@@ -38,7 +38,8 @@ class Camera:
         self.camera = pygame.Rect(x, y, self.width, self.height)
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None):
+# Helper function to draw the game state
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0)):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -72,18 +73,18 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
             # Projectile draw is simple polygon/blob.
             # We can just hacking pass offset?
             # Or add draw(camera)
-            proj.draw(surface, camera)
+            proj.draw(surface, camera, offset)
             
     # Draw effects
     if effects:
         for eff in effects:
-            eff.draw(surface, camera)
+            eff.draw(surface, camera, offset)
     
     # Draw player
-    player.draw(surface, camera)
+    player.draw(surface, offset, camera)
 
     
-    # Draw UI
+    # Draw UI (Fixed on screen, NO OFFSET)
     font = pygame.font.Font(None, 36)
     # Text color inverse of background
     text_color = BLACK if is_white_mode else WHITE
@@ -91,6 +92,9 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
     text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
     surface.blit(text, (10, 10))
+    
+    # Optional: Visual warning for drain
+    # Can't access logic state here easily without passing it, but good enough for now.
     
     info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
     surface.blit(info_text, (10, 50))
