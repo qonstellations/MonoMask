@@ -7,36 +7,113 @@ from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin
 
-def run():
-    # Initialize Pygame
-    pygame.init()
-    pygame.mixer.init()  # Initialize audio mixer
+from .enemy import MirrorRonin
+from .settings_manager import save_settings # Import settings manager
+
+def run(screen, settings):
+    # Initialize Pygame Mixer (Safe to call multiple times or checks init)
+    # pygame.init() is handled in main.py
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
 
     # Game setup
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("MonoMask")
+    # screen is passed exclusively
+    # pygame.display.set_caption("MonoMask") # Handled in main
     pygame.mouse.set_visible(False) # Hide system cursor, use in-game reticle
     clock = pygame.time.Clock()
     
-    # Load Peace Mode Music
-    try:
-        pygame.mixer.music.load("assets/Drifting Memories.mp3")
-        pygame.mixer.music.set_volume(0.5)  # 50% volume
-        music_loaded = True
-    except:
-        print("Warning: Could not load peace mode music")
-        music_loaded = False
+    # ... (Audio Lines) ...
     
-    # Load Mode Switch Sound Effect
+    # Sensitivity setting (Loaded from settings)
+    reticle_sensitivity = settings.get("sensitivity", 1.0)
+    
+    # ... (Rest of Init) ...
+    
+    # Audio Paths & Objects
+    try:
+        light_bg_sound = pygame.mixer.Sound("assets/light_audio_bg.wav")
+        dark_bg_sound = pygame.mixer.Sound("assets/dark_audio_bg.wav")
+    except Exception as e:
+        print(f"Warning: Could not load BGM: {e}")
+        light_bg_sound = None
+        dark_bg_sound = None
+
+    # Reserve channels for BGM so SFX don't interrupt them
+    # Channel 0: Light Theme
+    # Channel 1: Dark Theme
+    pygame.mixer.set_reserved(2)
+    bg_chan_light = pygame.mixer.Channel(0)
+    bg_chan_dark = pygame.mixer.Channel(1)
+    
+    # Start playing loops immediately at 0 volume
+    if light_bg_sound:
+        bg_chan_light.play(light_bg_sound, loops=-1)
+        bg_chan_light.set_volume(0)
+        
+    if dark_bg_sound:
+        bg_chan_dark.play(dark_bg_sound, loops=-1)
+        bg_chan_dark.set_volume(0)
+        
+    # Volume State for Crossfading
+    current_vol_light = 0.0
+    current_vol_dark = 0.0
+    
+    # Target volumes
+    TARGET_VOL_LIGHT_MAX = 0.5
+    TARGET_VOL_DARK_MAX = 0.4
+    TARGET_VOL_DEATH_FACTOR = 0.4 / 0.7 # Scaling factor for death volume (approx 0.57)
+    
     try:
         shadow_sound = pygame.mixer.Sound("assets/shadow.mp3")
-        shadow_sound.set_volume(0.7)  # 70% volume
+        shadow_sound.set_volume(1.0)  # Max volume for thrill
     except:
         print("Warning: Could not load shadow sound effect")
         shadow_sound = None
+        
+    # Load Heartbeat Sound
+    try:
+        heartbeat_sound = pygame.mixer.Sound("assets/heartbeat.mp3")
+        heartbeat_sound.set_volume(0.9)
+    except:
+        print("Warning: Could not load heartbeat sound")
+        heartbeat_sound = None
+        
+    # Load Game Over Sound
+    try:
+        game_over_sound = pygame.mixer.Sound("assets/game_over.wav")
+        game_over_sound.set_volume(0.8)
+    except:
+        print("Warning: Could not load game_over.wav")
+        game_over_sound = None
+
+    # Movement Audio State
+    step_timer = 0.0
+    step_interval = 0.5 # Slower steps (0.5s)
     
-    # Music state
-    music_playing = False
+    # Load Movement SFX
+    try:
+        light_step_sound = pygame.mixer.Sound("assets/light_step.wav")
+        light_step_sound.set_volume(0.5) # 50% intensity
+        
+        dark_step_sound = pygame.mixer.Sound("assets/dark_step.wav")
+        dark_step_sound.set_volume(0.5) # 50% intensity
+        
+        jump_sound = pygame.mixer.Sound("assets/jump.mp3")
+        jump_sound.set_volume(2.0)
+        
+        splat_sound = pygame.mixer.Sound("assets/splat.wav")
+        splat_sound.set_volume(0.6)
+        
+        waves_sound = pygame.mixer.Sound("assets/waves.mp3")
+        waves_sound.set_volume(0.6)
+    except Exception as e:
+        print(f"Warning: Could not load Movement/Attack SFX: {e}")
+        light_step_sound, dark_step_sound, jump_sound = None, None, None
+        splat_sound, waves_sound = None, None
+    
+    # Heartbeat state
+    heartbeat_timer = 0.0
+    heartbeat_interval = 1.0 # Starts slow
     
     # Initialize Background
     background = ParallaxBackground()
@@ -246,23 +323,34 @@ def run():
     
     # Pause Menu State
     paused = False
-    menu_state = "PAUSE" # PAUSE, OPTIONS
+    menu_state = "PAUSE"  # PAUSE, OPTIONS
     pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
     options_menu_options = ["Toggle Fullscreen", "Reticle Sensitivity", "Back"]
     pause_selected = 0  # Currently highlighted option
     
-    # Sensitivity setting (1.0 = default, 0.5 = slow, 2.0 = fast)
-    reticle_sensitivity = 1.0
-    
     # Camera
     # camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
     
-    is_fullscreen = False
+    is_fullscreen = settings.get("fullscreen", False)
     
-    # Surfaces
-    canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Used for final compositing
-    old_screen_capture = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Snapshot of old state
-    next_state_capture = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)) # Render of new state
+    # --- DYNAMIC RENDER RESOLUTION ---
+    # Detect native resolution for fullscreen rendering
+    screen_w, screen_h = screen.get_size()
+    
+    # Scale Factor (1.0 = base resolution)
+    scale_factor = 1.0
+    if screen_w > SCREEN_WIDTH or screen_h > SCREEN_HEIGHT:
+        # Use native resolution
+        render_w, render_h = screen_w, screen_h
+        scale_factor = screen_w / SCREEN_WIDTH
+    else:
+        render_w, render_h = SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    # Surfaces (at render resolution)
+    SHAKE_PADDING = int(50 * scale_factor)  # Used for shake amplitude calculation
+    canvas = pygame.Surface((render_w, render_h))
+    old_screen_capture = pygame.Surface((render_w, render_h))
+    next_state_capture = pygame.Surface((render_w, render_h))
 
     while running:
         dt = clock.tick(FPS) / 1000.0
@@ -335,37 +423,50 @@ def run():
                                     menu_state = "OPTIONS"
                                     pause_selected = 0
                                 elif selected_option == "Main Menu":
-                                    pygame.quit()
+                                    # Stop all sounds before returning to menu
+                                    pygame.mixer.stop()
                                     return "main_menu"
                                     
                             elif menu_state == "OPTIONS":
                                 selected_option = options_menu_options[pause_selected]
                                 if selected_option == "Toggle Fullscreen":
                                     # Toggle Logic
-                                    is_fullscreen = not is_fullscreen
-                                    if is_fullscreen:
-                                        # Native Fullscreen
+                                    settings["fullscreen"] = not settings["fullscreen"]
+                                    save_settings(settings)
+                                    
+                                    if settings["fullscreen"]:
                                         screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                                     else:
-                                        # Windowed Default
-                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0)
                                     
-                                    # Recreate surfaces at new resolution
-                                    new_w, new_h = screen.get_size()
-                                    canvas = pygame.Surface((new_w, new_h))
-                                    old_screen_capture = pygame.Surface((new_w, new_h))
-                                    next_state_capture = pygame.Surface((new_w, new_h))
+                                    # Recalculate scale_factor and recreate canvas
+                                    screen_w, screen_h = screen.get_size()
+                                    if screen_w > SCREEN_WIDTH or screen_h > SCREEN_HEIGHT:
+                                        render_w, render_h = screen_w, screen_h
+                                        scale_factor = screen_w / SCREEN_WIDTH
+                                    else:
+                                        render_w, render_h = SCREEN_WIDTH, SCREEN_HEIGHT
+                                        scale_factor = 1.0
+                                    
+                                    SHAKE_PADDING = int(50 * scale_factor)
+                                    canvas = pygame.Surface((render_w, render_h))
+                                    old_screen_capture = pygame.Surface((render_w, render_h))
+                                    next_state_capture = pygame.Surface((render_w, render_h))
                                     
                                 elif selected_option == "Back":
                                     menu_state = "PAUSE"
                                     pause_selected = 0
                         
-                        # Handle left/right for sensitivity adjustment
+                        # Slider Logic (Right/Left)
                         if menu_state == "OPTIONS" and options_menu_options[pause_selected] == "Reticle Sensitivity":
-                            if event.key == pygame.K_LEFT:
-                                reticle_sensitivity = max(0.2, reticle_sensitivity - 0.1)
-                            elif event.key == pygame.K_RIGHT:
-                                reticle_sensitivity = min(3.0, reticle_sensitivity + 0.1)
+                             if event.key == pygame.K_LEFT:
+                                 settings["sensitivity"] = max(0.2, settings["sensitivity"] - 0.1)
+                                 reticle_sensitivity = settings["sensitivity"]
+                                 save_settings(settings)
+                             elif event.key == pygame.K_RIGHT:
+                                 settings["sensitivity"] = min(3.0, settings["sensitivity"] + 0.1)
+                                 reticle_sensitivity = settings["sensitivity"]
+                                 save_settings(settings)
                     
                     # Only process game inputs if NOT paused
                     elif not paused:
@@ -415,6 +516,7 @@ def run():
                             proj = player.shoot()
                             if proj:
                                 projectiles.append(proj)
+                                if splat_sound: splat_sound.play()
             
             # Shooting / Melee Input (Mouse: Left Click) - Only when not paused
             if event.type == pygame.MOUSEBUTTONDOWN and not paused:
@@ -424,12 +526,71 @@ def run():
                         proj = player.shoot()
                         if proj:
                             projectiles.append(proj)
+                            if splat_sound: splat_sound.play()
                     else:
                         # Tension Mode: Melee
                         new_effects = player.melee_attack()
                         if new_effects:
                             effects.extend(new_effects)
+                            if waves_sound: waves_sound.play()
         
+        if not paused:
+            # --- Audio Crossfade Logic ---
+            # Determine target volumes based on state
+            target_light = 0.0
+            target_dark = 0.0
+            
+            if player.is_white:
+                target_light = TARGET_VOL_LIGHT_MAX
+                target_dark = 0.0
+            else:
+                target_light = 0.0
+                target_dark = TARGET_VOL_DARK_MAX
+                
+                # One-shot transition sound
+                # We detect state change by checking if we are moving TO dark from light (i.e. if dark volume is low)
+                if current_vol_dark < 0.1 and target_dark > 0.1:
+                     # Playing shadow sound only once per switch
+                     if shadow_sound and active_music_mode != "DARK":
+                         shadow_sound.play()
+                         active_music_mode = "DARK" # Reuse this var just for trigger tracking
+            
+            if player.is_white:
+                active_music_mode = "LIGHT"
+            
+            # Game Over Dimming
+            if game_over:
+                # Fade to silence
+                target_light = 0.0
+                target_dark = 0.0
+            
+            # Lerp volumes (Smooth transition)
+            if game_over:
+                # Fade to 0 over 2.5s (from max 0.7)
+                # Speed = 0.7 / 2.5 = 0.28
+                fade_speed = 0.28 * dt
+            else:
+                # Standard fast switch (approx 0.6s)
+                fade_speed = 1.5 * dt 
+            
+            # Move light volume
+            if current_vol_light < target_light:
+                current_vol_light = min(target_light, current_vol_light + fade_speed)
+            elif current_vol_light > target_light:
+                current_vol_light = max(target_light, current_vol_light - fade_speed)
+                
+            # Move dark volume
+            if current_vol_dark < target_dark:
+                current_vol_dark = min(target_dark, current_vol_dark + fade_speed)
+            elif current_vol_dark > target_dark:
+                current_vol_dark = max(target_dark, current_vol_dark - fade_speed)
+            
+            # Apply volumes
+            if bg_chan_light:
+                bg_chan_light.set_volume(current_vol_light)
+            if bg_chan_dark:
+                bg_chan_dark.set_volume(current_vol_dark)
+
         # ========== LOADING SCREEN HANDLING ==========
         if loading_screen_active:
             loading_timer += dt
@@ -528,21 +689,7 @@ def run():
                 # Update Background Parallax
                 background.update(player.vel_x)
                 
-                # Music Control - Play only in Peace Mode
-                if music_loaded:
-                    if player.is_white:
-                        # Check if music should be playing but stopped
-                        if not pygame.mixer.music.get_busy():
-                            # Start/restart peace music (loop infinitely)
-                            pygame.mixer.music.play(-1)
-                            music_playing = True
-                    elif music_playing:
-                        # Fade out music when entering tension mode
-                        pygame.mixer.music.fadeout(500)  # 500ms fade
-                        music_playing = False
-                        # Play shadow sound effect as mode switch indicator
-                        if shadow_sound:
-                            shadow_sound.play()
+
 
                 # Tension Logic based on state
                 active_ronins = 0
@@ -574,6 +721,22 @@ def run():
                 # Recalculate Intensity after update
                 intensity = min(1.0, tension_duration / 12.0)
                 
+                # --- Dynamic Heartbeat Logic ---
+                if not player.is_white and heartbeat_sound:
+                    # Calculate interval based on tension
+                    # Range: Tension 0.0 -> ~1.2s
+                    #        Tension 12.0 -> ~0.25s (Fast Panic)
+                    normalized_tension = min(1.0, tension_duration / 12.0)
+                    heartbeat_interval = 1.2 - (normalized_tension * 0.95)
+                    
+                    heartbeat_timer -= dt
+                    if heartbeat_timer <= 0:
+                        heartbeat_sound.play()
+                        heartbeat_timer = heartbeat_interval
+                else:
+                    # Reset timer so it starts immediately when switching to dark mode
+                    heartbeat_timer = 0.0
+                
                 # Forced Switch Logic (Trigger at 8.0 Tension)
                 if player.is_white and tension_duration >= 8.0:
                      if not transition_active:
@@ -601,6 +764,9 @@ def run():
                 if tension_duration >= 12.0 and not player.is_white:
                     overload_timer += dt
                     if overload_timer > 3.0:
+                        if game_over_sound:
+                            game_over_sound.play()
+                        pygame.mixer.music.set_volume(0.4) # Fade background to 40% on death
                         game_over = True
                 else:
                     overload_timer = 0.0
@@ -624,6 +790,27 @@ def run():
                 
                 # Update player
                 player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
+                
+                # --- Movement Audio ---
+                # 1. Jump Sound
+                if player.just_jumped and jump_sound:
+                    jump_sound.play()
+                
+                # 2. Footsteps
+                if player.on_ground and abs(player.vel_x) > 0.5:
+                    step_timer -= dt
+                    if step_timer <= 0:
+                        step_timer = step_interval
+                        # Play step sound based on mode
+                        # Play step sound based on mode
+                        if player.is_white:
+                            if light_step_sound: light_step_sound.play()
+                        else:
+                            if dark_step_sound: dark_step_sound.play()
+                else:
+                    # Reset timer so steps start immediately when walking resumes
+                    # But give a tiny delay to avoid "landing step" unless we want landing sounds
+                    step_timer = 0.05
                 
                 # Check for void death - instant respawn
                 if player.fell_into_void:
@@ -728,6 +915,9 @@ def run():
                     if player.is_neutral_collision(spike):
                          spike_rect = spike.get_rect()
                          if player_rect.colliderect(spike_rect):
+                             if game_over_sound:
+                                 game_over_sound.play()
+                             pygame.mixer.music.set_volume(0.4) # Fade background to 40% on death
                              game_over = True
                              crumble_effect = CrumbleEffect(screen)
                              break
@@ -781,12 +971,12 @@ def run():
             
             if not paused:
                 total_intensity = intensity
-                shake_amp = 10 * total_intensity
+                shake_amp = 20 * total_intensity * scale_factor  # Increased from 10
                 
                 if overload_timer > 0:
-                    shake_amp += overload_timer * 5 
+                    shake_amp += overload_timer * 10 * scale_factor  # Increased from 5
                     
-                shake_amp += getattr(player, 'shake_intensity', 0)
+                shake_amp += getattr(player, 'shake_intensity', 0) * scale_factor
                 
                 if shake_amp > 0:
                     shake_x = int((random.random() - 0.5) * 2 * shake_amp)
@@ -835,7 +1025,8 @@ def run():
                 if transition_radius > max_radius:
                     transition_active = False
             else:
-                # Standard Draw
+                # Standard Draw (apply shake to offset)
+                shake_offset = (camera_offset[0] + shake_x, camera_offset[1] + shake_y)
                 draw_game(canvas, player.is_white, player, 
                          platforms=platforms, 
                          projectiles=projectiles, 
@@ -844,7 +1035,7 @@ def run():
                          spikes=spikes, 
                          camera=camera, 
                          enemies=enemies, 
-                         offset=camera_offset,
+                         offset=shake_offset,
                          portal=portal)
                 draw_distortion(canvas, intensity)
 
@@ -853,8 +1044,8 @@ def run():
             current_bg = CREAM if player.is_white else BLACK_MATTE
             screen.fill(current_bg) 
             
-            # Canvas is now at native resolution, no scaling needed
-            screen.blit(canvas, (shake_x, shake_y))
+            # Canvas blits directly, shake applied via camera offset
+            screen.blit(canvas, (0, 0))
             
             # FPS Counter (Top Right, game-style)
             fps_font = pygame.font.Font(None, 28)
@@ -967,56 +1158,131 @@ def run():
                  
             # --- PAUSE MENU OVERLAY ---
             if paused:
-                # Get actual screen dimensions
-                sw, sh = screen.get_size()
-                
-                # Dim the screen
-                overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                # Dim the screen (Use RENDER resolution)
+                overlay = pygame.Surface((render_w, render_h), pygame.SRCALPHA)
                 overlay.fill((0, 0, 0, 180)) # Semi-transparent black
-                screen.blit(overlay, (0, 0))
+                canvas.blit(overlay, (0, 0))
                 
-                # Draw Menu
-                menu_font = pygame.font.Font(None, 50)
-                title_font = pygame.font.Font(None, 80)
+                # Draw Menu (Scaled Fonts)
+                menu_font = pygame.font.Font(None, int(50 * scale_factor))
+                title_font = pygame.font.Font(None, int(80 * scale_factor))
                 
                 # Title
                 title_text = "PAUSED" if menu_state == "PAUSE" else "OPTIONS"
                 title_surf = title_font.render(title_text, True, WHITE)
-                screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
+                canvas.blit(title_surf, (int(SCREEN_WIDTH * scale_factor)//2 - title_surf.get_width()//2, int(150 * scale_factor)))
                 
                 # Options
                 options_to_draw = pause_menu_options if menu_state == "PAUSE" else options_menu_options
                 
-                start_y = 250
-                gap_y = 60
+                start_y = 280  # Base Y position
+                gap_y = 80     # Increased vertical gap
                 
                 for i, option in enumerate(options_to_draw):
-                    color = WHITE
+                    # Default: Text is White
+                    text_color = WHITE
                     text = option
+                    is_selected = (i == pause_selected)
                     
-                    # Special handling for sensitivity display
-                    if option == "Reticle Sensitivity":
-                        text = f"Reticle Sensitivity: {reticle_sensitivity:.1f}x"
+                    # Calculate position (in base coordinates, then scale)
+                    y_pos = start_y + i * gap_y
+                    center_x = SCREEN_WIDTH // 2
                     
-                    if i == pause_selected:
-                        color = (255, 200, 50) # Highlight Color (Gold)
-                        if option == "Reticle Sensitivity":
-                            text = f"< {text} >"
+                    if option == "Toggle Fullscreen":
+                        # LABEL with Highlight
+                        if is_selected:
+                            # Draw highlight behind text
+                            text_surf = menu_font.render("Fullscreen", True, (0, 0, 0))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                            pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                            canvas.blit(text_surf, text_rect)
                         else:
-                            text = f"> {text} <"
+                            text_surf = menu_font.render("Fullscreen", True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            canvas.blit(text_surf, text_rect)
                         
-                    opt_surf = menu_font.render(text, True, color)
-                    screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
+                        # SWITCH (no highlight, just normal state)
+                        switch_w = int(60 * scale_factor)
+                        switch_h = int(30 * scale_factor)
+                        switch_x = int((center_x + 150) * scale_factor)
+                        switch_y = int(y_pos * scale_factor) - switch_h // 2
+                        switch_rect = pygame.Rect(switch_x, switch_y, switch_w, switch_h)
+                        
+                        knob_radius = int(12 * scale_factor)
+                        
+                        if settings["fullscreen"]:
+                            # On State: Filled White
+                            pygame.draw.rect(canvas, (255, 255, 255), switch_rect, border_radius=int(15 * scale_factor))
+                            pygame.draw.circle(canvas, (0, 0, 0), (switch_x + switch_w - int(15 * scale_factor), switch_y + switch_h // 2), knob_radius)
+                        else:
+                            # Off State: Outline White
+                            pygame.draw.rect(canvas, (255, 255, 255), switch_rect, 2, border_radius=int(15 * scale_factor))
+                            pygame.draw.circle(canvas, (255, 255, 255), (switch_x + int(15 * scale_factor), switch_y + switch_h // 2), int(10 * scale_factor))
+
+                    elif option == "Reticle Sensitivity":
+                        # LABEL with Highlight
+                        if is_selected:
+                            text_surf = menu_font.render("Reticle Sensitivity", True, (0, 0, 0))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                            pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                            canvas.blit(text_surf, text_rect)
+                        else:
+                            text_surf = menu_font.render("Reticle Sensitivity", True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(midright=(int((center_x - 150) * scale_factor), int(y_pos * scale_factor)))
+                            canvas.blit(text_surf, text_rect)
+                        
+                        # SLIDER (no highlight)
+                        slider_w = int(150 * scale_factor)
+                        slider_h = int(4 * scale_factor)
+                        slider_x = int((center_x + 150) * scale_factor)
+                        slider_y = int(y_pos * scale_factor) - slider_h // 2
+                        
+                        pygame.draw.rect(canvas, (255, 255, 255), (slider_x, slider_y, slider_w, slider_h))
+                        
+                        # Knob
+                        val = settings["sensitivity"]
+                        norm = (val - 0.2) / (3.0 - 0.2)
+                        knob_x = slider_x + norm * slider_w
+                        
+                        pygame.draw.circle(canvas, (255, 255, 255), (int(knob_x), int(slider_y + slider_h // 2)), int(8 * scale_factor))
+                        
+                        # Value Text
+                        val_font = pygame.font.Font(None, int(30 * scale_factor))
+                        val_surf = val_font.render(f"{val:.1f}", True, (255, 255, 255))
+                        canvas.blit(val_surf, (slider_x + slider_w + int(20 * scale_factor), slider_y - int(8 * scale_factor)))
+                        
+                    else:
+                        # Standard Button (Text Highlight)
+                        if is_selected:
+                             text_surf = menu_font.render(text, True, (0, 0, 0))
+                             text_rect = text_surf.get_rect(center=(int(center_x * scale_factor), int(y_pos * scale_factor)))
+                             bg_rect = text_rect.inflate(int(40 * scale_factor), int(20 * scale_factor))
+                             pygame.draw.rect(canvas, (255, 255, 255), bg_rect)
+                             canvas.blit(text_surf, text_rect)
+                        else:
+                             text_surf = menu_font.render(text, True, (255, 255, 255))
+                             canvas.blit(text_surf, text_surf.get_rect(center=(int(center_x * scale_factor), int(y_pos * scale_factor))))
 
         elif game_over:
             # Game Over State (Pixel Crumble)
             if crumble_effect is None:
-                crumble_effect = CrumbleEffect(screen)
+                crumble_effect = CrumbleEffect(canvas)
             
             crumble_effect.update()
-            crumble_effect.draw(screen)
+            crumble_effect.draw(canvas)
         
+        # --- Final Presentation ---
+        # Scale canvas to actual screen size (Native Fullscreen Support)
+        target_size = screen.get_size()
+        if target_size != (SCREEN_WIDTH, SCREEN_HEIGHT):
+            pygame.transform.smoothscale(canvas, target_size, screen)
+        else:
+            screen.blit(canvas, (0,0))
+            
         pygame.display.flip()
 
-    pygame.quit()
-    sys.exit()
+        pygame.display.flip()
+    
+    return "quit"

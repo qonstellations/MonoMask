@@ -38,8 +38,7 @@ class Camera:
         self.camera = pygame.Rect(x, y, self.width, self.height)
 
 # Helper function to draw the game state
-# Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0), portal=None):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0), portal=None, scale=1.0):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -51,7 +50,7 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
         return rect
         
     if is_white_mode and background:
-        background.draw(surface)
+        background.draw(surface, scale=scale)
     
     # Draw platforms
     for platform in platforms:
@@ -60,21 +59,21 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
         # Best to pass camera to platform.draw or calculate offset points.
         # Let's update Platform.draw to accept camera, or offset the context?
         # Easier: Pass camera to draw()
-        platform.draw(surface, is_white_mode, camera=camera, offset=offset)
+        platform.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
 
     # Draw enemies
     if enemies:
         for enemy in enemies:
-            enemy.draw(surface, is_white_mode, camera=camera, offset=offset)
-    
+            enemy.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
+     
     # Draw portal (blackhole)
     if portal:
-        portal.draw(surface, is_white_mode, camera=camera, offset=offset)
+        portal.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
 
     # Draw spikes
     if spikes:
         for spike in spikes:
-            spike.draw(surface, is_white_mode, camera=camera, offset=offset)
+            spike.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
             
     # Draw projectiles
     if projectiles:
@@ -82,19 +81,20 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
             # Projectile draw is simple polygon/blob.
             # We can just hacking pass offset?
             # Or add draw(camera)
-            proj.draw(surface, camera=camera, offset=offset)
+            proj.draw(surface, camera=camera, offset=offset, scale=scale)
             
     # Draw effects
     if effects:
         for eff in effects:
-            eff.draw(surface, camera=camera, offset=offset)
+            eff.draw(surface, camera=camera, offset=offset, scale=scale)
     
     # Draw player
-    player.draw(surface, camera=camera, offset=offset)
+    player.draw(surface, camera=camera, offset=offset, scale=scale)
 
     
     # Draw UI (Fixed on screen, NO OFFSET) - Top Right
-    font = pygame.font.Font(None, 36)
+    font_size = int(36 * scale)
+    font = pygame.font.Font(None, font_size)
     # Text color inverse of background
     text_color = BLACK if is_white_mode else WHITE
     
@@ -102,11 +102,11 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     
     mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
     text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
-    text_rect = text.get_rect(topright=(sw - 10, 40))
+    text_rect = text.get_rect(topright=(sw - int(10 * scale), int(40 * scale)))
     surface.blit(text, text_rect)
     
     info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
-    info_rect = info_text.get_rect(topright=(sw - 10, 70))
+    info_rect = info_text.get_rect(topright=(sw - int(10 * scale), int(70 * scale)))
     surface.blit(info_text, info_rect)
 
 def draw_distortion(surface, intensity):

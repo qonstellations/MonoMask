@@ -33,6 +33,9 @@ class Player:
         # Death State
         self.fell_into_void = False
         
+        # Audio Flags
+        self.just_jumped = False
+        
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
@@ -123,8 +126,10 @@ class Player:
             # self.facing = 1 # Overridden by mouse aim
         
         # Jump
+        self.just_jumped = False # Reset flag for external audio check
         if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
             self.vel_y = -self.jump_strength
+            self.just_jumped = True
         
         # Apply gravity (same in both modes for consistent jump height)
         current_gravity = self.gravity
@@ -179,6 +184,19 @@ class Player:
                     elif self.vel_y < 0:
                         self.y = platform_rect.bottom
                         self.vel_y = 0
+                        
+        # Stability Check: Look 2 pixels below to confirm ground
+        # (Prevents flickering on_ground state due to gravity cycles)
+        if not self.on_ground and self.vel_y >= 0:
+             self.y += 2
+             ground_check_rect = self.get_rect()
+             self.y -= 2
+             
+             for platform in platforms:
+                 if self.is_neutral_collision(platform):
+                     if ground_check_rect.colliderect(platform.get_rect()):
+                         self.on_ground = True
+                         break
         
         # Move boundaries check REMOVED for camera
         # if self.x < 0: self.x = 0
@@ -189,7 +207,7 @@ class Player:
             self.fell_into_void = True
     
         
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Visual Config: Samurai Prototype (Standard Resolution)
         ox, oy = offset
         
@@ -325,7 +343,6 @@ class Player:
         pygame.draw.line(screen, border_color, bp1, bp2, 2)
         
         # --- AIM RETICLE ---
-        # --- AIM RETICLE ---
         # Always draw reticle (needed since system cursor is hidden)
         aim_r = self.width * 1.0 # Radius from center
         reticle_x = cx + math.cos(self.aim_angle) * aim_r
@@ -401,6 +418,7 @@ class Player:
     def melee_attack(self):
         """Triggers a melee slash"""
         if self.shoot_cooldown > 0 or self.slash_timer > 0:
+            print(f"Melee REJECT: CD={self.shoot_cooldown} Timer={self.slash_timer}")
             return None
             
         self.shoot_cooldown = 10 # Faster melee attacks
@@ -596,7 +614,7 @@ class Platform:
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         # SKETCH STYLE DRAWING
         
         # Visibility check
@@ -708,7 +726,7 @@ class Spike:
         # Hitbox (smaller than visual)
         return pygame.Rect(self.x + 5, self.y + 10, self.width - 10, self.height - 10)
         
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         # Similar visibility rules to Platforms
         should_be_active = self.is_neutral or (self.is_white and is_white_mode) or (not self.is_white and not is_white_mode)
         
@@ -779,7 +797,7 @@ class Projectile:
     def get_rect(self):
         return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
 
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Generate points in WORLD SPACE first, then apply camera/offset
         num_points = 20
         points = []
@@ -872,7 +890,7 @@ class SplatBlast:
             # Shrink
             p['size'] *= p['decay']
             
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         ox, oy = offset
         for p in self.particles:
             if p['size'] < 1:
@@ -907,7 +925,7 @@ class SlashWave:
         self.x += math.cos(self.angle) * self.speed
         self.y += math.sin(self.angle) * self.speed
         
-    def draw(self, screen, camera=None, offset=(0,0)):
+    def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Draw a "Distorted Wavefront" (Semi-circle with noise)
         ox, oy = offset
         
