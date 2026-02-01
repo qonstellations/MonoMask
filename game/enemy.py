@@ -214,6 +214,12 @@ class MirrorRonin:
             pygame.draw.circle(screen, (255, 50, 50), (int(eye_x), int(cy - 10)), 3)
 
 
+
+class Minion:
+    """Small square enemy that chases the player. Dies in 1 hit."""
+
+
+
 class ShadowSelf:
     """The Inner Demon - A massive corrupted reflection of the protagonist.
     4x larger with cracked hat, glaring red eyes, tattered robes, and burning flames."""
@@ -232,12 +238,15 @@ class ShadowSelf:
         self.on_ground = False
         
         # Combat State
-        self.health = 25  # Much tougher than regular enemies
+        self.health = 200  # Increased from 100 for better durability
         self.marked_for_deletion = False
+        self.is_dead = False # Compatible with check
         self.attack_timer = 0
+        self.spawn_timer = 0 # For spawning minions
         self.facing = 1
         self.activated = False
         self.melee_damage_cooldown = 0
+        self.newly_spawned_minions = [] # Buffer for core loop to pick up
         
         # Visual State
         self.anim_timer = 0.0
@@ -272,13 +281,24 @@ class ShadowSelf:
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def take_damage(self, source_type):
-        if source_type == "projectile":
-            self.health -= 1
+        damage = 0
+        if isinstance(source_type, int) or isinstance(source_type, float):
+            damage = source_type
+        elif source_type == "projectile":
+            damage = 5 # Increased from 1
         elif source_type == "melee":
             if self.melee_damage_cooldown > 0:
                 return
-            self.health -= 2.5
+            damage = 10 # Increased from 2.5
             self.melee_damage_cooldown = 30
+            
+        self.health -= damage
+        print(f"ShadowSelf took {damage} dmg. Health: {self.health}") # Debug
+        
+        if self.health <= 0:
+            self.health = 0
+            self.marked_for_deletion = True
+            self.is_dead = True
             
         if self.health <= 0:
             self.marked_for_deletion = True
@@ -303,7 +323,12 @@ class ShadowSelf:
                 p['vx'] = random.uniform(-1, 1)
                 p['vy'] = random.uniform(-3, -1)
                 p['life'] = random.uniform(0.5, 1.0)
+                p['vx'] = random.uniform(-1, 1)
+                p['vy'] = random.uniform(-3, -1)
+                p['life'] = random.uniform(0.5, 1.0)
                 p['size'] = random.uniform(8, 20)
+                
+        # Spawn Logic Removed (User Request)
         
         # Update ink drips
         for d in self.ink_drips:
@@ -385,13 +410,13 @@ class ShadowSelf:
             px, py = player.x + player.width/2, player.y + player.height/2
             angle = math.atan2(py - cy, px - cx)
             
-            # Fire 3 projectiles in a spread
+            # Fire 3 projectiles in a spread (SHURIKENS)
             for spread in [-0.2, 0, 0.2]:
                 a = angle + spread
-                speed = 10
+                speed = 12
                 vx = math.cos(a) * speed
                 vy = math.sin(a) * speed
-                proj = Projectile(cx, cy, vx, vy, is_white_source=True, is_player_shot=False)
+                proj = Projectile(cx, cy, vx, vy, is_white_source=True, is_player_shot=False, visual_type="SHURIKEN")
                 self.pending_projectiles.append(proj)
 
     def behavior_black(self, player):
@@ -419,20 +444,20 @@ class ShadowSelf:
         # Colors based on player mode (inverted for contrast)
         if is_white_mode:
             fill_color = (20, 20, 20)  # Dark body
+            border_color = (240, 240, 230)  # Cream border
             flame_color = (40, 40, 40)  # Black flames
             flame_glow = (60, 60, 60)
-            eye_color = (255, 50, 50)  # Red eyes always
-            ink_color = (30, 30, 30)
         else:
             fill_color = (240, 240, 230)  # Cream body
+            border_color = (20, 20, 20)  # Dark border
             flame_color = (255, 255, 250)  # White flames
             flame_glow = (200, 200, 190)
-            eye_color = (255, 50, 50)
-            ink_color = (220, 220, 210)
         
-        # --- Helper: Shiver/Rage Effect ---
-        def shiver_point(x, y, intensity=1.0):
-            shake_amp = 5.0 * intensity
+        eye_color = (255, 50, 50)  # Red eye always
+        
+        # --- Helper: Shiver Effect (like protagonist) ---
+        def shiver_point(x, y, intensity=0.8):
+            shake_amp = 4.0 * intensity
             dx = (random.random() - 0.5) * shake_amp
             dy = (random.random() - 0.5) * shake_amp
             return (x + dx, y + dy)
@@ -442,7 +467,6 @@ class ShadowSelf:
             px = cx + p['x']
             py = cy + p['y'] - self.height * 0.2
             size = p['size'] * p['life']
-            alpha = int(200 * p['life'])
             
             # Draw flame shape (triangle pointing up)
             flame_pts = [
@@ -450,7 +474,6 @@ class ShadowSelf:
                 (px - size * 0.6, py + size * 0.5),
                 (px + size * 0.6, py + size * 0.5)
             ]
-            # Add flicker
             flame_pts = [shiver_point(pt[0], pt[1], 0.5) for pt in flame_pts]
             pygame.draw.polygon(screen, flame_color, flame_pts)
             # Inner glow
@@ -461,30 +484,32 @@ class ShadowSelf:
             ]
             pygame.draw.polygon(screen, flame_glow, inner_pts)
         
-        # --- BODY (Tattered Robes) ---
-        hover_y = math.sin(t * 0.08) * 5
+        # --- BODY (Floating Robes - EXACTLY like protagonist) ---
+        hover_y = math.sin(t * 0.1) * 5
         
         shoulder_y = cy - self.height * 0.25 + hover_y
         feet_y = cy + self.height * 0.4 + hover_y
         
-        body_top_w = self.width * 0.35
-        body_bottom_w = self.width * 0.8
+        body_top_w = self.width * 0.3
+        body_bottom_w = self.width * 0.7
         
+        # Robe construction (same as protagonist)
         robe_pts = []
         robe_pts.append(shiver_point(cx + body_top_w/2, shoulder_y))
         
-        # Bottom edge with tattered effect
-        num_robe_points = 25
+        # Bottom Edge with wave physics (exactly like protagonist)
+        num_robe_points = 20
         for i in range(num_robe_points + 1):
             prog = i / num_robe_points
             base_x = (cx + body_bottom_w/2) - (body_bottom_w * prog)
             
-            # Jagged tattered edge
-            tatter = abs(math.sin(prog * 20 - t * 0.3)) * 15
-            drip = math.sin(prog * 8 + t * 0.1) * 8
-            wave_y = tatter + drip
+            # Physics for cloth
+            ripple = math.sin(prog * 10 + t * 0.2) * 5
+            tatter = abs(math.sin(prog * 15 - t * 0.3)) * 10
+            wave_y = ripple * 0.5 + tatter * 0.5
             
-            tilt_x = -self.vel_x * 3 * prog
+            # Tilt based on movement
+            tilt_x = -self.vel_x * 2 * prog
             
             pt_x = base_x + tilt_x
             pt_y = feet_y + wave_y
@@ -495,17 +520,9 @@ class ShadowSelf:
         
         pygame.draw.polygon(screen, fill_color, robe_pts)
         
-        # --- INK DRIPS from robes ---
-        for d in self.ink_drips:
-            dx = cx + d['x']
-            dy = cy + d['y']
-            size = int(d['size'] * d['life'])
-            if size > 0:
-                pygame.draw.circle(screen, ink_color, (int(dx), int(dy)), size)
-        
-        # --- HEAD ---
-        head_radius = self.width * 0.18
-        head_cy = shoulder_y - head_radius * 0.4
+        # --- HEAD (same as protagonist) ---
+        head_radius = self.width * 0.22
+        head_cy = shoulder_y - head_radius * 0.6
         head_cx = cx
         
         head_pts = []
@@ -515,128 +532,81 @@ class ShadowSelf:
             px = head_cx + math.cos(angle) * head_radius
             py = head_cy + math.sin(angle) * head_radius
             head_pts.append(shiver_point(px, py))
-            
+        
         pygame.draw.polygon(screen, fill_color, head_pts)
         
-        # --- CRACKED HAT (Ashigasa with damage) ---
-        hat_w = self.width * 1.4
-        hat_h = self.height * 0.2
-        hat_base_y = head_cy + 5
+        # --- HAT (Conical - same as protagonist) ---
+        hat_w = self.width * 1.3
+        hat_h = self.height * 0.18
+        hat_base_y = head_cy
         
-        obj_shake_x = (random.random() - 0.5) * 8
-        obj_shake_y = (random.random() - 0.5) * 4
+        # Object shake
+        obj_shake_x = (random.random() - 0.5) * 5
+        obj_shake_y = (random.random() - 0.5) * 2
         
-        # Main hat triangle
+        # Define base points
         p1 = (cx - hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
         p2 = (cx + hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
         p3 = (cx + obj_shake_x, hat_base_y - hat_h + obj_shake_y)
         
         hat_pts = []
-        steps = 15
+        # Bottom edge (subdivided)
+        steps = 10
         for i in range(steps + 1):
             t_val = i / steps
             lx = p1[0] + (p2[0] - p1[0]) * t_val
             ly = p1[1] + (p2[1] - p1[1]) * t_val
-            # Add cracks/damage to bottom edge
-            crack = random.uniform(-3, 3) if random.random() > 0.7 else 0
-            hat_pts.append(shiver_point(lx, ly + crack))
+            hat_pts.append(shiver_point(lx, ly))
         
+        # Top point
         hat_pts.append(shiver_point(p3[0], p3[1]))
         
         pygame.draw.polygon(screen, fill_color, hat_pts)
         
-        # Hat cracks (lines)
-        crack_color = eye_color if random.random() > 0.5 else flame_glow
-        for _ in range(3):
-            crack_x = cx + random.uniform(-hat_w*0.3, hat_w*0.3) + obj_shake_x
-            crack_y1 = hat_base_y - hat_h * 0.3 + obj_shake_y
-            crack_y2 = hat_base_y + obj_shake_y
-            pygame.draw.line(screen, crack_color, 
-                           shiver_point(crack_x, crack_y1),
-                           shiver_point(crack_x + random.uniform(-5, 5), crack_y2), 2)
+        # Hat Detail: Horizontal Band (same as protagonist)
+        band_y = hat_base_y - (hat_h * 0.3) + obj_shake_y
+        band_w = hat_w * 0.6
+        bx1 = cx - band_w/2 + obj_shake_x
+        bx2 = cx + band_w/2 + obj_shake_x
         
-        # --- GLARING RED EYES ---
-        eye_y = head_cy - head_radius * 0.1
-        eye_spacing = head_radius * 0.5
+        bp1 = shiver_point(bx1, band_y)
+        bp2 = shiver_point(bx2, band_y)
         
-        # Left eye
-        eye1_x = head_cx - eye_spacing
-        # Right eye
-        eye2_x = head_cx + eye_spacing
+        pygame.draw.line(screen, border_color, bp1, bp2, 3)
         
-        # Eye glow effect
-        for i in range(3):
-            glow_size = 12 - i * 3
-            glow_alpha = 100 + i * 50
-            pygame.draw.circle(screen, (glow_alpha, 20, 20), 
-                             (int(eye1_x + obj_shake_x), int(eye_y + obj_shake_y)), glow_size)
-            pygame.draw.circle(screen, (glow_alpha, 20, 20), 
-                             (int(eye2_x + obj_shake_x), int(eye_y + obj_shake_y)), glow_size)
+        # --- SINGLE RED EYE (Centered, glowing) ---
+        eye_cx = head_cx + obj_shake_x
+        eye_cy = head_cy - head_radius * 0.1 + obj_shake_y
+        eye_radius = 20  # Large single eye
         
-        # Core eyes
-        pygame.draw.circle(screen, eye_color, 
-                         (int(eye1_x + obj_shake_x), int(eye_y + obj_shake_y)), 6)
-        pygame.draw.circle(screen, eye_color, 
-                         (int(eye2_x + obj_shake_x), int(eye_y + obj_shake_y)), 6)
-        # White pupil glint
-        pygame.draw.circle(screen, (255, 255, 255), 
-                         (int(eye1_x + obj_shake_x + 2), int(eye_y + obj_shake_y - 2)), 2)
-        pygame.draw.circle(screen, (255, 255, 255), 
-                         (int(eye2_x + obj_shake_x + 2), int(eye_y + obj_shake_y - 2)), 2)
+        # Outer glow
+        for i in range(5):
+            glow_r = eye_radius + 15 - i * 3
+            glow_alpha = min(255, 60 + i * 40)
+            pygame.draw.circle(screen, (glow_alpha, 10, 10), 
+                             (int(eye_cx), int(eye_cy)), glow_r)
         
-        # --- DUAL SWORDS (Corrupted & Jagged) ---
-        sword_len = self.width * 0.7
-        sword_width = 8
+        # Main eye (bright red)
+        pygame.draw.circle(screen, eye_color, (int(eye_cx), int(eye_cy)), eye_radius)
         
-        # Sword 1 (right hand, angled forward)
-        sword1_base_x = cx + body_top_w * 0.3
-        sword1_base_y = shoulder_y + self.height * 0.15
-        sword1_angle = 0.4 + math.sin(t * 0.15) * 0.1  # Slight sway
+        # Inner hot core
+        pygame.draw.circle(screen, (255, 150, 80), (int(eye_cx), int(eye_cy)), int(eye_radius * 0.5))
         
-        sword1_tip_x = sword1_base_x + math.cos(sword1_angle) * sword_len
-        sword1_tip_y = sword1_base_y + math.sin(sword1_angle) * sword_len * 0.3
-        
-        # Jagged sword shape
-        sword1_pts = [
-            shiver_point(sword1_base_x, sword1_base_y - sword_width/2),
-            shiver_point(sword1_tip_x, sword1_tip_y),
-            shiver_point(sword1_base_x, sword1_base_y + sword_width/2),
-        ]
-        pygame.draw.polygon(screen, flame_glow, sword1_pts)
-        # Sword edge
-        pygame.draw.line(screen, fill_color, 
-                        shiver_point(sword1_base_x, sword1_base_y),
-                        shiver_point(sword1_tip_x, sword1_tip_y), 2)
-        
-        # Sword 2 (left hand, angled back)
-        sword2_base_x = cx - body_top_w * 0.3
-        sword2_base_y = shoulder_y + self.height * 0.15
-        sword2_angle = math.pi - 0.4 - math.sin(t * 0.15) * 0.1
-        
-        sword2_tip_x = sword2_base_x + math.cos(sword2_angle) * sword_len
-        sword2_tip_y = sword2_base_y + math.sin(sword2_angle) * sword_len * 0.3
-        
-        sword2_pts = [
-            shiver_point(sword2_base_x, sword2_base_y - sword_width/2),
-            shiver_point(sword2_tip_x, sword2_tip_y),
-            shiver_point(sword2_base_x, sword2_base_y + sword_width/2),
-        ]
-        pygame.draw.polygon(screen, flame_glow, sword2_pts)
-        pygame.draw.line(screen, fill_color,
-                        shiver_point(sword2_base_x, sword2_base_y),
-                        shiver_point(sword2_tip_x, sword2_tip_y), 2)
+        # White glint
+        pygame.draw.circle(screen, (255, 255, 255), (int(eye_cx - 5), int(eye_cy - 5)), 4)
         
         # --- MORE FLAMES (In front, for layering) ---
-        for i, p in enumerate(self.flame_particles[:10]):
-            px = cx + p['x'] * 0.8
-            py = cy + p['y'] * 0.5 - self.height * 0.1
-            size = p['size'] * p['life'] * 0.7
+        for p in self.flame_particles[:15]:
+            px = cx + p['x'] * 0.7
+            py = cy + p['y'] * 0.4 - self.height * 0.1
+            size = p['size'] * p['life'] * 0.6
             
-            flame_pts = [
-                (px, py - size),
-                (px - size * 0.4, py + size * 0.3),
-                (px + size * 0.4, py + size * 0.3)
-            ]
-            flame_pts = [shiver_point(pt[0], pt[1], 0.3) for pt in flame_pts]
-            pygame.draw.polygon(screen, flame_color, flame_pts)
+            if size > 3:
+                flame_pts = [
+                    (px, py - size),
+                    (px - size * 0.5, py + size * 0.4),
+                    (px + size * 0.5, py + size * 0.4)
+                ]
+                flame_pts = [shiver_point(pt[0], pt[1], 0.3) for pt in flame_pts]
+                pygame.draw.polygon(screen, flame_color, flame_pts)
 

@@ -34,6 +34,9 @@ class Player:
         # Death State
         self.fell_into_void = False
         self.current_platform = None
+        self.health = 100
+        self.max_health = 100
+        self.invulnerable_timer = 0
         
         # Audio Flags
         self.just_jumped = False
@@ -74,6 +77,9 @@ class Player:
         # Lerp factor (speed of transition)
         lerp_speed = 0.5  # Very fast, still smooth transition
         self.tension_value += (target_tension - self.tension_value) * lerp_speed
+        
+        if self.invulnerable_timer > 0:
+            self.invulnerable_timer -= 1
         
         # Update Position History (Keep last 10 frames)
         self.pos_history.append((self.x, self.y))
@@ -217,7 +223,14 @@ class Player:
         # Void death check
         if self.y > 3000: # Fell into the abyss
             self.fell_into_void = True
-    
+            self.health = 0
+
+    def take_damage(self, amount):
+        if self.invulnerable_timer > 0:
+            return
+        self.health -= amount
+        self.invulnerable_timer = 60 # 1 second invulnerability
+        self.shake_intensity = 10.0
         
     def draw(self, screen, camera=None, offset=(0,0), scale=1.0):
         # Visual Config: Samurai Prototype (Standard Resolution)
@@ -1239,7 +1252,7 @@ class Spike:
             pygame.draw.polygon(screen, color, draw_pts)
 
 class Projectile:
-    def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True):
+    def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True, visual_type="ORB"):
         self.x = x
         self.y = y
         self.start_x = x  # Track starting position
@@ -1252,6 +1265,8 @@ class Projectile:
         # If source is Black (Tension), Projectile is Light (Cream)
         self.is_white_source = is_white_source # Determines color/affinity
         self.is_player_shot = is_player_shot # Determines who it hurts
+        self.visual_type = visual_type
+        self.rotation = 0.0
         
         # Color: If source is White(Peace), projectile is Black (Ink).
         # If source is Black(Tension), projectile is White (Light).
@@ -1310,14 +1325,44 @@ class Projectile:
             py = cy + math.sin(angle) * r
             points.append((px, py))
             
-        # Apply transformation ONLY ONCE
-        if camera:
-            points = [camera.apply_point(p[0], p[1]) for p in points]
-        else:
-            ox, oy = offset
-            points = [(p[0] - ox, p[1] - oy) for p in points]
+        if self.visual_type == "SHURIKEN":
+            # Draw Spinning Shuriken (Star)
+            self.rotation += 0.5 # Spin speed
             
-        pygame.draw.polygon(screen, self.color, points)
+            # Star shape
+            star_pts = []
+            num_spikes = 4
+            inner_r = self.radius * 0.4
+            outer_r = self.radius * 2.5 # Make them largeish
+            
+            for i in range(num_spikes * 2):
+                angle = (i / (num_spikes * 2)) * 2 * math.pi + self.rotation
+                r = outer_r if i % 2 == 0 else inner_r
+                
+                px = cx + math.cos(angle) * r
+                py = cy + math.sin(angle) * r
+                star_pts.append((px, py))
+            
+            # Apply transformation
+            if camera:
+                star_pts = [camera.apply_point(p[0], p[1]) for p in star_pts]
+            else:
+                ox, oy = offset
+                star_pts = [(p[0] - ox, p[1] - oy) for p in star_pts]
+            
+            pygame.draw.polygon(screen, self.color, star_pts)
+            pygame.draw.polygon(screen, WHITE, star_pts, 1) # Outline for visibility
+            
+        else:
+            # Default ORB drawing
+            # Apply transformation ONLY ONCE
+            if camera:
+                points = [camera.apply_point(p[0], p[1]) for p in points]
+            else:
+                ox, oy = offset
+                points = [(p[0] - ox, p[1] - oy) for p in points]
+                
+            pygame.draw.polygon(screen, self.color, points)
         
         # Trail/Tail particles?
         # Maybe complex for now, let's stick to the blob.
@@ -1410,6 +1455,12 @@ class SlashWave:
         self.speed = 12  # Reduced range
         self.lifetime = 8  # Shorter range
         self.timer = 0
+        
+    def check_collision(self, rect):
+        """Simple rectangular collision check"""
+        # Create a rough rect for the wave
+        wave_rect = pygame.Rect(self.x - 30, self.y - 30, 60, 60)
+        return wave_rect.colliderect(rect)
         
     def update(self):
         self.timer += 1

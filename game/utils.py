@@ -1,6 +1,7 @@
 import pygame
 import random
 from .settings import *
+from .enemy import ShadowSelf
 
 class Camera:
     def __init__(self, width, height):
@@ -98,21 +99,68 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
 
     
     # Draw UI (Fixed on screen, NO OFFSET) - Top Right
-    font_size = int(36 * scale)
-    font = pygame.font.Font(None, font_size)
-    # Text color inverse of background
+    font_size = int(24 * scale)
+    base_font = pygame.font.Font(None, font_size)
     text_color = BLACK if is_white_mode else WHITE
     
     sw = surface.get_width()
+    sh = surface.get_height()
     
-    mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
-    text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
-    text_rect = text.get_rect(topright=(sw - int(10 * scale), int(40 * scale)))
-    surface.blit(text, text_rect)
+    # UI CONFIG
+    bar_width = 200
+    bar_height = 8 # Thin, elegant
+    margin = 20
     
-    info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
-    info_rect = info_text.get_rect(topright=(sw - int(10 * scale), int(70 * scale)))
-    surface.blit(info_text, info_rect)
+    # 1. PLAYER HEALTH (Top Left)
+    p_x = margin
+    p_y = margin
+    
+    # Label "HP"
+    label_font = pygame.font.Font(None, 20)
+    label = label_font.render("VITALS", True, (150, 150, 150))
+    surface.blit(label, (p_x, p_y - 15))
+    
+    # Bar Background
+    pygame.draw.rect(surface, (20, 20, 20), (p_x, p_y, bar_width, bar_height))
+    # Bar Fill (White)
+    p_pct = max(0, player.health / player.max_health)
+    pygame.draw.rect(surface, (220, 220, 220), (p_x, p_y, int(bar_width * p_pct), bar_height))
+    # Border
+    pygame.draw.rect(surface, (255, 255, 255), (p_x, p_y, bar_width, bar_height), 1)
+
+    # 2. BOSS HEALTH (Top Right)
+    boss = None
+    if enemies:
+        for e in enemies:
+            if isinstance(e, ShadowSelf) and not e.marked_for_deletion and e.health > 0:
+                boss = e
+                break
+    
+    if boss:
+        b_x = sw - bar_width - margin
+        b_y = margin
+        
+        # Label "PROJECTION"
+        b_label = label_font.render("SHADOW", True, (150, 150, 150))
+        b_rect = b_label.get_rect(topright=(sw - margin, b_y - 15))
+        surface.blit(b_label, b_rect)
+        
+        # Bar Background
+        pygame.draw.rect(surface, (20, 20, 20), (b_x, b_y, bar_width, bar_height))
+        # Bar Fill (Grey)
+        b_pct = max(0, boss.health / 200.0)
+        pygame.draw.rect(surface, (180, 180, 180), (b_x, b_y, int(bar_width * b_pct), bar_height))
+        # Border
+        pygame.draw.rect(surface, (255, 255, 255), (b_x, b_y, bar_width, bar_height), 1)
+
+    # Mode Info (Bottom Left)
+    # Tiny, inconspicuous
+    mode_font = pygame.font.Font(None, 18)
+    mode_str = "PEACE" if is_white_mode else "CHAOS"
+    mode_text = mode_font.render(f"STATUS: {mode_str}", True, (100, 100, 100))
+    surface.blit(mode_text, (margin, sh - margin - 10))
+
+
 
 def draw_distortion(surface, intensity):
     """Draws tension distortion (noise/rects) based on intensity (0.0 to 1.0)"""
