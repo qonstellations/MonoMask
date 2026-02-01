@@ -652,7 +652,7 @@ def run(screen, settings, start_new_game=False):
     mask_transition_active = False
     mask_transition_progress = 0.0  # 0.0 to 1.0
     mask_transition_direction = "ZOOM_IN"  # ZOOM_IN (mask off) or ZOOM_OUT (mask on)
-    mask_transition_duration = 0.45  # Duration in seconds (balanced - visible but snappy)
+    mask_transition_duration = 0.1  # Duration in seconds (very fast snap)
     mask_transition_old_is_white = True  # The mode BEFORE transition
     
     # Music State
