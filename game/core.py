@@ -306,6 +306,29 @@ def run(screen, settings, start_new_game=False):
                 {'x': 5900, 'y': base_y+300-250, 'w': 200, 'type': 'neutral', 'is_slider': True, 'slider_range': 450}, # glider 2 
                 {'x': 6100, 'y': base_y+300-700, 'w': 1000, 'type': 'neutral'} # end with an enemy gurading the portal
             ]
+        elif level == "LEVEL_3":
+            platforms_data = [
+                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+                {'x': 600, 'y': base_y-100, 'w': 200, 'type': 'neutral'},
+                {'x': 900, 'y': base_y-200, 'w': 200, 'type': 'white'},
+                {'x': 1300, 'y': base_y-100, 'w': 200, 'type': 'neutral'},
+                {'x': 1600, 'y': base_y-200, 'w': 100, 'type': 'black'},
+                {'x': 1700, 'y': base_y-350, 'w': 100, 'type': 'white'},
+                {'x': 1700, 'y': base_y-50, 'w': 100, 'type': 'white'},
+                {'x': 1900, 'y': base_y-150, 'w': 100, 'type': 'black'},
+                {'x': 2100, 'y': base_y-200, 'w': 100, 'type': 'neutral'}, 
+                {'x': 1950, 'y': base_y-310, 'w': 100, 'type': 'white'}, 
+                {'x': 1340, 'y': base_y-400, 'w': 200, 'type': 'neutral'}, 
+                {'x': 1700, 'y': base_y-500, 'w': 300, 'type': 'black'}, 
+                {'x': 2100, 'y': base_y-600, 'w': 300, 'type': 'neutral'}, 
+            
+            ]
+        elif level == "LEVEL_4":
+            # "change every platforms... width 50 and x coordinate 50 too [spaced by 50] and y = base_y"
+            # Creating a long row of small neutral blocks
+            platforms_data = [{'x': 50 + i*50, 'y': base_y+400, 'w': 50, 'type': 'neutral'} for i in range(50)]
+        elif level == "ENDING":
+            platforms_data = [] # Empty for ending screen
         else:
             # Fallback to LEVEL_1 layout
             platforms_data = [
@@ -332,15 +355,17 @@ def run(screen, settings, start_new_game=False):
                 
             is_slider = p_data.get('is_slider', False)
             is_mystical = p_data.get('is_mystical', False)
-            plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000))
+            is_pillar = p_data.get('is_pillar', False)
+            plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000), is_pillar=is_pillar)
             platforms.append(plat)
             
-        # Portal for tutorial level (at end of last platform)
+        # Portal for levels (at end of last platform)
         portal = None
-        if level in ["TUTORIAL", "LEVEL_1", "LEVEL_2"]:
-            last_plat = platforms_data[-1]
-            portal_x = last_plat['x'] + last_plat['w'] - 80  # Near end of last platform
-            portal_y = last_plat['y'] - 60  # Above platform
+        if level in ["TUTORIAL", "LEVEL_1", "LEVEL_2", "LEVEL_3", "LEVEL_4"]:
+            # Find the furthest platform
+            furthest_plat = max(platforms_data, key=lambda p: p['x'] + p['w'])
+            portal_x = furthest_plat['x'] + furthest_plat['w'] - 80  # Near end of last platform
+            portal_y = furthest_plat['y'] - 60  # Above platform
             portal = BlackHole(portal_x, portal_y)
         
         # Spawn Enemies
@@ -369,24 +394,25 @@ def run(screen, settings, start_new_game=False):
             enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
             enemy_y = last_plat['y'] - 60
             enemies = [MirrorRonin(enemy_x, enemy_y)]
+        elif level == "LEVEL_3":
+             # Spawn enemies on final stretch
+            last_plat = platforms_data[-1]
+            enemy_x = last_plat['x'] + last_plat['w'] // 2
+            enemy_y = last_plat['y'] - 60
+            # enemies = [MirrorRonin(enemy_x, enemy_y)] # Disabled for construction
+            enemies = []
+        elif level == "LEVEL_4":
+            last_plat = platforms_data[-1]
+            # Spawn ON the last platform (width 50)
+            enemies = [MirrorRonin(last_plat['x'], last_plat['y'] - 60)]
         
         projectiles = []
         effects = []
         return player, platforms, spikes, projectiles, effects, enemies, portal, doors
 
     # Level State
-    current_level = "TUTORIAL"
-    # DETERMINE STARTING LEVEL
-    if start_new_game:
-        # Reset progress
-        current_level = "TUTORIAL"
-        settings["current_level"] = current_level
-        save_settings(settings)
-    else:
-        # Load progress
-        current_level = settings.get("current_level", "TUTORIAL")
-    
-    # Initialize Game State
+    level_map = {0: "TUTORIAL", 1: "LEVEL_1", 2: "LEVEL_2", 3: "LEVEL_3", 4: "LEVEL_4"}
+    current_level = level_map.get(DEV_START_LEVEL, "TUTORIAL")
     player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(current_level)
     
     # Loading Screen State
@@ -480,6 +506,36 @@ def run(screen, settings, start_new_game=False):
     while running:
         dt = clock.tick(FPS) / 1000.0
         
+        # --- ENDING SEQUENCE ---
+        if current_level == "ENDING":
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE or event.key == pygame.K_ESCAPE:
+                        return "Main Menu"
+            
+            screen.fill((0, 0, 0))
+            
+            # Simple fade in or static text
+            font_title = pygame.font.Font(None, 100)
+            title_surf = font_title.render("MONOMASK", True, (240, 240, 230))
+            title_rect = title_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 50))
+            screen.blit(title_surf, title_rect)
+            
+            font_sub = pygame.font.Font(None, 50)
+            sub_surf = font_sub.render("Thank You For Playing", True, (150, 150, 150))
+            sub_rect = sub_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 50))
+            screen.blit(sub_surf, sub_rect)
+            
+            font_hint = pygame.font.Font(None, 30)
+            hint_surf = font_hint.render("Press ENTER to Return", True, (100, 100, 100))
+            hint_rect = hint_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT - 50))
+            screen.blit(hint_surf, hint_rect)
+            
+            pygame.display.flip()
+            continue
+
         # --- GAME OVER LOGIC (NO ANIMATION) ---
         if game_over:
             # Input: R to Restart
@@ -1061,6 +1117,12 @@ def run(screen, settings, start_new_game=False):
                                 next_level = "LEVEL_1"
                             elif current_level == "LEVEL_1":
                                 next_level = "LEVEL_2"
+                            elif current_level == "LEVEL_2":
+                                 next_level = "LEVEL_3"
+                            elif current_level == "LEVEL_3":
+                                 next_level = "LEVEL_4"
+                            elif current_level == "LEVEL_4":
+                                 next_level = "ENDING"
                             else:
                                 next_level = "LEVEL_1"  # Fallback
                     else:

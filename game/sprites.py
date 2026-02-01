@@ -493,13 +493,14 @@ class Player:
         return Projectile(cx, cy, vel_x, vel_y, self.is_white)
 
 class Platform:
-    def __init__(self, x, y, width, height, is_white=True, is_neutral=False, is_slider=False, is_mystical=False, slider_range=1000):
+    def __init__(self, x, y, width, height, is_white=True, is_neutral=False, is_slider=False, is_mystical=False, slider_range=1000, is_pillar=False):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.is_white = is_white
         self.is_neutral = is_neutral
+        self.is_pillar = is_pillar
         
         # Slider Logic
         self.is_slider = is_slider
