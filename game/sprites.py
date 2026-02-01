@@ -23,6 +23,7 @@ class Player:
         
         # Fluid Transition State (0.0 = Pure Peace, 1.0 = Pure Tension)
         self.tension_value = 0.0 
+        self.facing = 1 # Default facing right
         
         # Combat State
         self.shoot_cooldown = 0
@@ -32,6 +33,7 @@ class Player:
         
         # Death State
         self.fell_into_void = False
+        self.current_platform = None
         
         # Audio Flags
         self.just_jumped = False
@@ -125,16 +127,24 @@ class Player:
             self.vel_x = self.speed
             # self.facing = 1 # Overridden by mouse aim
         
-        # Jump
-        self.just_jumped = False # Reset flag for external audio check
-        if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
-            self.vel_y = -self.jump_strength
-            self.just_jumped = True
-        
-        # Apply gravity (same in both modes for consistent jump height)
-        current_gravity = self.gravity
+        # Jump / Vertical Movement
+        if DEV_NO_GRAVITY:
+            # Free Flight Mode (No Gravity, Free Vertical Movement)
+            if keys[pygame.K_w] or keys[pygame.K_UP]:
+                self.vel_y = -self.speed
+            elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
+                self.vel_y = self.speed
+            else:
+                self.vel_y = 0
+        else:
+            # Normal Jump
+            if (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w]) and self.on_ground:
+                self.vel_y = -self.jump_strength
             
-        self.vel_y += current_gravity
+            # Apply gravity (same in both modes for consistent jump height)
+            current_gravity = self.gravity
+                
+            self.vel_y += current_gravity
         
         # Cap falling speed
         if self.vel_y > 20:
@@ -176,10 +186,12 @@ class Player:
                 
                 if player_rect.colliderect(platform_rect):
                     # Falling down (landing on platform)
+                    # Falling down (landing on platform)
                     if self.vel_y > 0:
                         self.y = platform_rect.top - self.height
                         self.vel_y = 0
                         self.on_ground = True
+                        self.current_platform = platform
                     # Moving up (hitting platform from below)
                     elif self.vel_y < 0:
                         self.y = platform_rect.bottom
@@ -481,7 +493,7 @@ class Player:
         return Projectile(cx, cy, vel_x, vel_y, self.is_white)
 
 class Platform:
-    def __init__(self, x, y, width, height, is_white=True, is_neutral=False):
+    def __init__(self, x, y, width, height, is_white=True, is_neutral=False, is_slider=False, is_mystical=False, slider_range=1000):
         self.x = x
         self.y = y
         self.width = width
@@ -489,15 +501,114 @@ class Platform:
         self.is_white = is_white
         self.is_neutral = is_neutral
         
+        # Slider Logic
+        self.is_slider = is_slider
+        if self.is_slider:
+            self.base_y = y
+            self.target_y = y - slider_range # Move up by slider_range
+            self.slide_speed = 3 # Speed of movement
+            
+        # Mystical Cave Logic
+        self.is_mystical = is_mystical
+        
         # Floating Island Visuals
         self.island_points = []
         self.trees = [] 
         self.grass_lines = []
         self.hatch_lines = []
+        self.crystals = [] # New list for crystal shards
         
         self._generate_island_shape()
-        self._generate_trees()
-        self._generate_details()
+        
+        if self.is_mystical:
+            self._generate_crystals()
+            self._generate_cave_ceiling() 
+            self._generate_cave_background()
+        else:
+            self._generate_trees()
+            self._generate_details()
+
+    def update(self, player_on_top):
+        """Update platform. Returns vertical delta if player should move with platform."""
+        if not self.is_slider:
+            return 0  # No movement
+
+        dy = 0  # Track how much the platform moved
+        
+        if player_on_top:
+            # Move Up
+            if self.y > self.target_y:
+                dy = -self.slide_speed
+                self.y += dy
+                self._shift_visuals(dy)
+                
+                if self.y < self.target_y: 
+                    self.y = self.target_y
+                    self._generate_island_shape()
+        else:
+            # Move Down (Return to base)
+            if self.y < self.base_y:
+                dy = self.slide_speed
+                self.y += dy
+                self._shift_visuals(dy)
+                
+                if self.y > self.base_y: 
+                    self.y = self.base_y
+        
+        return dy  # Return movement delta for player sync
+
+    def _shift_visuals(self, dy):
+        # Shift all absolute coordinate structures
+        self.island_points = [(p[0], p[1] + dy) for p in self.island_points]
+        
+        # Shift trees
+        new_trees = []
+        for tree_parts in self.trees:
+             new_parts = []
+             for branch in tree_parts:
+                 b = branch.copy()
+                 b['p1'] = (b['p1'][0], b['p1'][1] + dy)
+                 b['p2'] = (b['p2'][0], b['p2'][1] + dy)
+                 new_parts.append(b)
+             new_trees.append(new_parts)
+        self.trees = new_trees
+        
+        # Shift grass
+        self.grass_lines = [((g[0][0], g[0][1] + dy), (g[1][0], g[1][1] + dy)) for g in self.grass_lines]
+        
+        # Shift hatches
+        self.hatch_lines = [((h[0][0], h[0][1] + dy), (h[1][0], h[1][1] + dy)) for h in self.hatch_lines]
+        
+        # Shift crystals
+        new_crystals = []
+        for crystal in self.crystals:
+             c = crystal.copy()
+             new_pts = [(p[0], p[1] + dy) for p in c['points']]
+             c['points'] = new_pts
+             new_crystals.append(c)
+        self.crystals = new_crystals
+        
+        if self.is_mystical:
+            # Shift Ceiling
+            self.ceiling_points = [(p[0], p[1] + dy) for p in self.ceiling_points]
+            
+            # Shift Stalactites
+            new_stals = []
+            for stal in self.stalactites:
+                 s = stal.copy()
+                 new_pts = [(p[0], p[1] + dy) for p in s['points']]
+                 s['points'] = new_pts
+                 new_stals.append(s)
+            self.stalactites = new_stals
+            
+            # Shift Background Lines
+            new_bg = []
+            for line in self.cave_bg_lines:
+                l = line.copy()
+                l['p1'] = (l['p1'][0], l['p1'][1] + dy)
+                l['p2'] = (l['p2'][0], l['p2'][1] + dy)
+                new_bg.append(l)
+            self.cave_bg_lines = new_bg
 
     def _generate_details(self):
         """Generates grass and shading details for the sketch look"""
@@ -529,6 +640,210 @@ class Platform:
             p1 = (sx, sy)
             p2 = (sx + length, sy - length) # Diagonal /
             self.hatch_lines.append((p1, p2))
+
+    def _generate_crystals(self):
+        """Generates small white spikes for mystical platforms (x > 3000)"""
+        self.crystals = []
+        
+        # User wants spikes from global x=3000 onwards.
+        # Platform x starts at self.x.
+        
+        start_global_x = 3000
+        
+        # Step size for spikes
+        # Use random steps for organic feel
+        
+        # Determine local start offset
+        local_start = max(0, start_global_x - self.x)
+        
+        current_x = local_start
+        while current_x < self.width - 20:
+             
+             global_pos = self.x + current_x
+             if global_pos >= start_global_x:
+                 # Generate Spike
+                 cw = random.randint(10, 25) 
+                 ch = random.randint(20, 45) 
+                 
+                 cx = self.x + current_x
+                 cy = self.y # Base
+                 
+                 # Shape: Crystal/Spike
+                 # Similar to Spike class crystal shape
+                 p1 = (cx - cw/2, cy)
+                 p2 = (cx + cw/2, cy)
+                 p3 = (cx + random.randint(-5, 5), cy - ch) # Tip
+                 
+                 # Maybe add extra point for jaggedness like Spike class?
+                 # Keep it simple for optimization as there might be many
+                 
+                 self.crystals.append({
+                     'points': [p1, p2, p3],
+                     'type': 'WHITE_SPIKE'
+                 })
+             
+             current_x += random.randint(30, 60) # Random spacing
+
+    def _generate_cave_ceiling(self):
+        """Generates a ceiling mirroring the floor, with stalactites"""
+        self.ceiling_points = []
+        self.stalactites = []
+        
+        cave_height = 1000 # Match background height
+        ceiling_y = self.y - cave_height
+        
+        # 1. Generate Ceiling Shape (Jagged, facing down)
+        # Similar logic to island shape but inverted
+        num_points = int(self.width / 15)
+        if num_points < 3: num_points = 3
+        
+        center_x = self.x + self.width / 2
+        
+        # Track lowest point for collision
+        max_y_val = -99999
+        
+        for i in range(num_points + 1):
+            t = i / num_points
+            current_x = self.x + (self.width * t) # Left to Right
+            
+            # Curve: Deepest in middle (closer to floor)
+            # NORMALIZED: Reduced depth multiplier from 150 back to 60 (User request: not too bold)
+            dist_from_center = abs(current_x - center_x) / (self.width / 2)
+            base_y_offset = 60 * (1.0 - dist_from_center * 0.5)
+            
+            # NORMALIZED: Reduced jitter
+            jitter = random.uniform(-10, 20)
+            
+            current_y = ceiling_y + base_y_offset + jitter
+            self.ceiling_points.append((current_x, current_y))
+            
+            if current_y > max_y_val:
+                max_y_val = current_y
+                
+        # Store collision Y (slightly above the lowest visual point to be forgiving?)
+        # Or exactly at lowest point. solid means solid.
+        self.ceiling_hit_y = max_y_val
+            
+        # 2. Stalactites REMOVED as per user request (No spikes)
+
+
+    def _generate_cave_background(self):
+        """Generates sketchy hatch lines for the cave background"""
+        self.cave_bg_lines = []
+        
+        cave_height = 1000 # Increased by 500px as requested
+        ceil_base_y = self.y - cave_height
+        
+        # Density of scratches
+        area = self.width * cave_height
+        num_scratches = int(area / 100) # 1 scratch per 100px^2 (approx)
+        
+        for _ in range(num_scratches):
+            sx = random.uniform(self.x, self.x + self.width)
+            sy = random.uniform(ceil_base_y, self.y)
+            
+            # Length and Angle
+            length = random.uniform(5, 20)
+            angle = random.uniform(0.5, 1.0) * math.pi # Mostly vertical/diagonal
+            if random.random() < 0.5: angle = -angle # Cross hatch
+            
+            ex = sx + math.cos(angle) * length
+            ey = sy + math.sin(angle) * length
+            
+            # Color intensity (Gray scale)
+            intensity = random.randint(20, 50) # Very faint
+            color = (intensity, intensity, intensity)
+            
+            self.cave_bg_lines.append({
+                'p1': (sx, sy),
+                'p2': (ex, ey),
+                'color': color,
+                'width': 1
+            })
+
+    def _generate_lantern_cave(self):
+        """Generates a cave with hanging lanterns (700px height)"""
+        self.ceiling_points = []
+        self.cave_bg_lines = []
+        self.lanterns = []
+        
+        cave_height = 700  # User specified 700px
+        ceiling_y = self.y - cave_height
+        
+        # 1. Generate Ceiling Shape (smooth arch)
+        num_points = int(self.width / 20)
+        if num_points < 5: num_points = 5
+        
+        center_x = self.x + self.width / 2
+        
+        for i in range(num_points + 1):
+            t = i / num_points
+            current_x = self.x + (self.width * t)
+            
+            # Gentle arch shape
+            dist_from_center = abs(current_x - center_x) / (self.width / 2)
+            base_y_offset = 40 * (1.0 - dist_from_center * 0.3)
+            jitter = random.uniform(-5, 10)
+            
+            current_y = ceiling_y + base_y_offset + jitter
+            self.ceiling_points.append((current_x, current_y))
+        
+        self.ceiling_hit_y = max([p[1] for p in self.ceiling_points])
+        
+        # 2. Generate Cave Background (dark with subtle scratches)
+        area = self.width * cave_height
+        num_scratches = int(area / 150)
+        
+        for _ in range(num_scratches):
+            sx = random.uniform(self.x, self.x + self.width)
+            sy = random.uniform(ceiling_y, self.y)
+            
+            length = random.uniform(5, 15)
+            angle = random.uniform(0.3, 0.9) * math.pi
+            if random.random() < 0.5: angle = -angle
+            
+            ex = sx + math.cos(angle) * length
+            ey = sy + math.sin(angle) * length
+            
+            intensity = random.randint(15, 35)
+            color = (intensity, intensity, intensity)
+            
+            self.cave_bg_lines.append({
+                'p1': (sx, sy),
+                'p2': (ex, ey),
+                'color': color,
+                'width': 1
+            })
+        
+        # 3. Generate Lanterns
+        num_lanterns = max(3, int(self.width / 200))
+        lantern_spacing = self.width / (num_lanterns + 1)
+        
+        for i in range(num_lanterns):
+            lx = self.x + lantern_spacing * (i + 1)
+            
+            # Chain attaches to ceiling, find ceiling Y at this X
+            ceil_y_at_x = ceiling_y + 50  # Approximate
+            for j, pt in enumerate(self.ceiling_points):
+                if j < len(self.ceiling_points) - 1:
+                    if self.ceiling_points[j][0] <= lx <= self.ceiling_points[j+1][0]:
+                        ceil_y_at_x = (self.ceiling_points[j][1] + self.ceiling_points[j+1][1]) / 2
+                        break
+            
+            chain_length = random.randint(80, 150)
+            ly = ceil_y_at_x + chain_length
+            
+            # Random glow phase for animation variation
+            glow_phase = random.uniform(0, 2 * math.pi)
+            
+            self.lanterns.append({
+                'x': lx,
+                'y': ly,
+                'chain_top_y': ceil_y_at_x,
+                'chain_length': chain_length,
+                'glow_phase': glow_phase,
+                'size': random.randint(25, 35)  # Lantern body size
+            })
 
     def _generate_trees(self):
         """Generates silhouette trees/bushes on top of the platform"""
@@ -613,8 +928,33 @@ class Platform:
             
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
-    
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
+
+    def check_spike_collision(self, player_rect):
+        """Checks if player rect collides with any mystical floor spikes"""
+        if not self.is_mystical: return False
+        
+        # Optimization: Fast bounding box check first?
+        # Platform rect check is already done probably.
+        
+        for crystal in self.crystals:
+            # Construct rect from points
+            # points are [(x,y), (x,y), (x,y)]
+            xs = [p[0] for p in crystal['points']]
+            ys = [p[1] for p in crystal['points']]
+            min_x, max_x = min(xs), max(xs)
+            min_y, max_y = min(ys), max(ys)
+            
+            spike_rect = pygame.Rect(min_x, min_y, max_x - min_x, max_y - min_y)
+            
+            # Simple interaction check
+            # Shrink player rect slightly for fairness?
+            hit_rect = player_rect.inflate(-15, -10) # Smaller hit box
+            
+            if spike_rect.colliderect(hit_rect):
+                return True
+        return False
+
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
         # SKETCH STYLE DRAWING
         
         # Visibility check
@@ -634,7 +974,11 @@ class Platform:
         rect.x -= ox
         rect.y -= oy
         
-        if self.is_neutral:
+        if self.is_mystical:
+            # Mystical Cave Theme
+            ink_color = (80, 70, 100) # Dark Slate
+            fill_color = (20, 15, 25) # Very Dark Cave Rock
+        elif self.is_neutral:
             ink_color = (100, 100, 100)  # Dark gray outline
             fill_color = (180, 180, 180)  # Light gray fill
         elif is_white_mode:
@@ -661,12 +1005,123 @@ class Platform:
         # Apply Camera
         poly_points = [apply_pt(p) for p in raw_poly]
         
-        # 2. Draw Fill (Opaque background to hide things behind)
+        if self.is_mystical:
+            # Mystical Cave Theme
+            ink_color = (80, 70, 100) # Dark Slate
+            fill_color = (20, 15, 25) # Very Dark Cave Rock
+        elif self.is_neutral:
+            ink_color = (100, 100, 100)  # Dark gray outline
+            fill_color = (180, 180, 180)  # Light gray fill
+        elif is_white_mode:
+            ink_color = BLACK_MATTE
+            fill_color = CREAM # Paper color
+        else:
+            ink_color = CREAM
+            fill_color = BLACK_MATTE
+            
+        # Helper for camera apply
+        def apply_pt(pt):
+            if camera: return camera.apply_point(pt[0], pt[1])
+            # FIX: Apply manual offset
+            return (pt[0] - ox, pt[1] - oy)
+            
+        # 1. Define Visual Polygon (Top + Jagged Bottom)
+        # Top-Left, Top-Right
+        tl = (self.x, self.y)
+        tr = (self.x + self.width, self.y)
+        
+        # Combine into closed loop
+        raw_poly = [tl, tr] + self.island_points
+        
+        # Apply Camera
+        poly_points = [apply_pt(p) for p in raw_poly]
+        
+        # 2. Draw Fill (Opaque background)
         pygame.draw.polygon(screen, fill_color, poly_points)
         
         # 3. Draw Outline (Ink)
-        pygame.draw.polygon(screen, ink_color, poly_points, 3) # Thickish pencil line
+        pygame.draw.polygon(screen, ink_color, poly_points, 3) 
         
+        # 4. Mystical Elements
+        if self.is_mystical:
+            time_val = pygame.time.get_ticks() / 1000.0
+            
+            # --- CEILING & BACKDROP ---
+            # 1. Background Fill (Darkness behind)
+            
+            # Let's draw the "Cave Wall" (Background)
+            # A dark rect covering the whole area? NO - SKETCH STYLE
+            # Draw faint background lines
+            for line in self.cave_bg_lines:
+                p1 = apply_pt(line['p1'])
+                p2 = apply_pt(line['p2'])
+                l_col = line['color']
+                pygame.draw.line(screen, l_col, p1, p2, 1)
+            
+            # Border lines REMOVED as per user request ("dont make a rectangle outline")
+            
+            
+            # Render Ceiling (Restored as per user request "similar to platform sketch")
+            # We want a rock mass hanging from the top.
+            # Ceiling points are the "bottom edge" of the ceiling mass.
+            # We need to close the loop by going up to the "roof" of the world (or some upper bound).
+            
+            # Use 'ceil_base_y' from generation logic (y - cave_height)
+            # Actually, _generate_cave_background uses logic: ceil_base_y = self.y - cave_height
+            # But we don't store cave_height on self. Let's assume consistent?
+            # Better: Find min Y of ceiling points and go up from there?
+            # Or just use the min Y from points as the "top"?
+            # Wait, ceiling_points ARE the jagged edge.
+            # To look like a platform, it needs thickness upwards.
+            
+            if hasattr(self, 'ceiling_points') and self.ceiling_points:
+                # Find the 'flat top' of this hanging rock (visually above visible area)
+                # Let's say 100px thick above the highest point
+                # FIX: Use 50px buffer above min_y
+                min_y = min([p[1] for p in self.ceiling_points])
+                roof_y = min_y - 50 
+                
+                # Create closed polygon:
+                # 1. Roof Top-Left
+                # 2. Roof Top-Right
+                # 3. Ceiling Points (Right to Left reversed? No, points are L->R)
+                # So: TL -> TR -> Points(R->L) -> Close
+                
+                c_tl = (self.x, roof_y)
+                c_tr = (self.x + self.width, roof_y)
+                
+                # Reverse points to trace back to left
+                jagged_bottom = list(reversed(self.ceiling_points))
+                
+                raw_ceil_poly = [c_tl, c_tr] + jagged_bottom
+                ceil_poly_pts = [apply_pt(p) for p in raw_ceil_poly]
+                
+                pygame.draw.polygon(screen, fill_color, ceil_poly_pts)
+                pygame.draw.polygon(screen, ink_color, ceil_poly_pts, 3)
+            
+            # Stalactites REMOVED
+            
+            # Draw Floor Spikes (Dynamic Colors)
+            for crystal in self.crystals:
+                 pts = [apply_pt(p) for p in crystal['points']]
+                 
+                 # Logic: If White Mode -> Black Spikes (Contrast)
+                 #        If Black Mode -> White Spikes (Contrast)
+                 if is_white_mode:
+                     s_fill = (0, 0, 0)
+                     s_outline = (255, 255, 255) # Optional: White outline for style? Or just Black
+                     # User said "make thode spikes black in color".
+                     # Let's keep it simple: Black fill, maybe no outline or White outline?
+                     # Let's do Black Fill, White Outline for visibility against potentially grey elements
+                     pygame.draw.polygon(screen, (0, 0, 0), pts) 
+                     pygame.draw.polygon(screen, (255, 255, 255), pts, 1)
+                 else:
+                     # Black Mode / Dark Cave -> White Spikes
+                     pygame.draw.polygon(screen, (255, 255, 255), pts)
+                     pygame.draw.polygon(screen, (0, 0, 0), pts, 2)
+            
+            return # Skip trees/grass for mystical
+            
         # 4. Draw Details (Grass)
         for g in self.grass_lines:
             gp1 = apply_pt(g[0])
@@ -698,32 +1153,59 @@ class Platform:
                      pygame.draw.circle(screen, ink_color, (int(p2[0]), int(p2[1])), 2)
 
 class Spike:
-    def __init__(self, x, y, width=30, height=30, is_white=True, is_neutral=False):
+    def __init__(self, x, y, width=30, height=30, is_white=True, is_neutral=False, is_mystical=False):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.is_white = is_white
         self.is_neutral = is_neutral
+        self.is_mystical = is_mystical
         
-        # Generate jagged spike triangle shape
+        # Generate shape
         self.points = []
-        self._generate_shape()
+        if self.is_mystical:
+            self._generate_crystal_shape()
+        else:
+            self._generate_shape()
         
     def _generate_shape(self):
-        # Assumes pointing UP for now
-        # Base is at y + height
-        # Tip is at y
-        
-        # Simple Triangle
+        # ... standard triangle ...
         p1 = (self.x, self.y + self.height) # Bottom Left
         p2 = (self.x + self.width, self.y + self.height) # Bottom Right
         p3 = (self.x + self.width / 2, self.y) # Top Center (Tip)
+        self.points = [p1, p3, p2]
+
+    def _generate_crystal_shape(self):
+        # Irregular crystal shard
+        # Base points
+        p1 = (self.x, self.y + self.height)
+        p2 = (self.x + self.width, self.y + self.height)
+        
+        # Tip point (randomized x, fixed top y)
+        tip_x = self.x + self.width * random.uniform(0.3, 0.7)
+        tip_y = self.y
+        p3 = (tip_x, tip_y)
+        
+        # Optional extra side point for jaggedness
+        if random.random() < 0.5:
+            # 4-point crystal
+            mid_x = self.x + self.width * (0.8 if tip_x < self.x + self.width/2 else 0.2)
+            mid_y = self.y + self.height * random.uniform(0.3, 0.7)
+            self.points = [p1, (mid_x, mid_y), p3, p2] if mid_x < tip_x else [p1, p3, (mid_x, mid_y), p2]
+            # Ensure proper winding order? Simple sort by angle or just hardcode loop
+            # Let's stick to simple triangle for robustness or just 3 points but randomized
+            self.points = [p1, p3, p2] # Keeping it simple for now to avoid convex issues
+            
+            # Widen the base or shift tip more?
+            # Actually, `Platform` crystals are just triangles often.
+            # Let's make it taller/thinner or slanted?
+            # No, user wants "same design".
+            pass
         
         self.points = [p1, p3, p2]
         
     def get_rect(self):
-        # Hitbox (smaller than visual)
         return pygame.Rect(self.x + 5, self.y + 10, self.width - 10, self.height - 10)
         
     def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
@@ -733,18 +1215,28 @@ class Spike:
         if not should_be_active:
             return
             
-        # Color Logic
-        color = RED if is_white_mode else (255, 50, 50) # Red warning color
-        
         draw_pts = self.points
         if camera:
             draw_pts = [camera.apply_point(p[0], p[1]) for p in self.points]
         else:
-            # FIX: Apply manual offset
             ox, oy = offset
             draw_pts = [(p[0] - ox, p[1] - oy) for p in self.points]
             
-        pygame.draw.polygon(screen, color, draw_pts)
+        # Color Logic
+        if self.is_mystical:
+            # Crystal Style: High Contrast
+            # If White Mode (Peace) -> Black Spikes
+            # If Black Mode (Tension) -> White Spikes
+            if is_white_mode:
+                pygame.draw.polygon(screen, (0, 0, 0), draw_pts) # Black fill
+                pygame.draw.polygon(screen, (255, 255, 255), draw_pts, 1) # White outline
+            else:
+                pygame.draw.polygon(screen, (255, 255, 255), draw_pts) # White fill
+                pygame.draw.polygon(screen, (0, 0, 0), draw_pts, 2) # Black outline
+        else:
+            # Standard Red Spikes
+            color = RED if is_white_mode else (255, 50, 50)
+            pygame.draw.polygon(screen, color, draw_pts)
 
 class Projectile:
     def __init__(self, x, y, vx, vy, is_white_source=True, is_player_shot=True):
@@ -967,7 +1459,6 @@ class SlashWave:
             py = ccy + math.sin(a) * current_r
             
             points.append((px, py))
-            
         if len(points) > 1:
             if camera:
                 points = [camera.apply_point(p[0], p[1]) for p in points]
@@ -984,70 +1475,198 @@ class SlashWave:
         return slash_rect.colliderect(rect)
 
 
-class Portal:
-    """Black hole portal for level transitions"""
-    def __init__(self, x, y):
+class BlackHole:
+    """Level exit portal - a wavy flowing dotted sphere effect"""
+    def __init__(self, x, y, radius=60, target_level=2):
         self.x = x
         self.y = y
-        self.radius = 60
-        self.rotation = 0
-        self.pulse_timer = 0
+        self.radius = radius
+        self.target_level = target_level
+        
+        # Animation state
+        self.rotation = 0.0
+        self.pulse_timer = 0.0
         self.active = True
         
+        # Create wavy sphere lines - horizontal latitude lines that flow
+        self.sphere_lines = []
+        num_latitudes = 24  # Number of horizontal rings (increased for density)
+        dots_per_line = 80  # Dots per ring (increased for density)
+        
+        for lat in range(num_latitudes):
+            lat_angle = (lat / num_latitudes) * math.pi  # 0 to PI (top to bottom)
+            ring_radius = math.sin(lat_angle) * self.radius  # Varies with latitude
+            y_offset = math.cos(lat_angle) * self.radius * 0.6  # Y position for 3D effect
+            
+            line_dots = []
+            for dot in range(dots_per_line):
+                dot_angle = (dot / dots_per_line) * math.pi * 2
+                # Add wave offset that varies per latitude for flowing effect
+                wave_offset = random.uniform(0, math.pi * 2)
+                wave_amplitude = random.uniform(3, 8)
+                line_dots.append({
+                    'base_angle': dot_angle,
+                    'wave_offset': wave_offset,
+                    'wave_amp': wave_amplitude,
+                    'size': random.randint(1, 3)
+                })
+            
+            self.sphere_lines.append({
+                'ring_radius': ring_radius,
+                'y_offset': y_offset,
+                'dots': line_dots,
+                'flow_speed': random.uniform(0.3, 0.8)
+            })
+        
     def get_rect(self):
-        return pygame.Rect(self.x - 30, self.y - 30, 60, 60)
+        return pygame.Rect(self.x - self.radius//2, self.y - self.radius//2, self.radius, self.radius)
     
-    def update(self):
-        self.rotation += 0.05
-        self.pulse_timer += 0.1
+    def update(self, dt):
+        self.rotation += dt * 2  # Rotate animation
+        self.pulse_timer += dt
         
     def check_collision(self, player_rect):
-        return self.active and self.get_rect().colliderect(player_rect)
+        """Check if player entered the black hole"""
+        # Use center-to-center distance for circular collision
+        player_center = player_rect.center
+        dx = player_center[0] - self.x
+        dy = player_center[1] - self.y
+        distance = math.sqrt(dx * dx + dy * dy)
+        return distance < self.radius * 0.6  # Core collision
     
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0, 0)):
         ox, oy = offset
-        cx = self.x - ox
-        cy = self.y - oy
+        
+        # Calculate screen position
+        screen_x = int(self.x - ox)
+        screen_y = int(self.y - oy)
         
         # Pulsing effect
-        pulse = 1.0 + math.sin(self.pulse_timer) * 0.15
+        pulse = 0.9 + 0.1 * math.sin(self.pulse_timer * 3)
         
-        # Outer glow rings (swirling)
-        for i in range(5):
-            ring_radius = int((self.radius + 20 - i * 8) * pulse)
-            alpha = 150 - i * 25
+        # Dot color based on mode
+        if is_white_mode:
+            dot_color = (30, 30, 40)  # Dark dots on light background
+            core_color = (10, 10, 15)
+        else:
+            dot_color = (220, 220, 230)  # Light dots on dark background
+            core_color = (5, 5, 10)
+        
+        # Draw wavy sphere lines
+        for line in self.sphere_lines:
+            ring_r = line['ring_radius'] * pulse
+            y_off = line['y_offset'] * pulse
             
-            # Calculate ring points with rotation
-            points = []
-            num_pts = 32
-            for j in range(num_pts):
-                angle = (j / num_pts) * 2 * math.pi + self.rotation * (i + 1) * 0.3
-                # Spiral distortion
-                distort = math.sin(angle * 4 + self.pulse_timer) * 5
-                r = ring_radius + distort
-                px = cx + math.cos(angle) * r
-                py = cy + math.sin(angle) * r
-                points.append((px, py))
+            for dot_data in line['dots']:
+                # Calculate angle with rotation and wave
+                wave = math.sin(self.pulse_timer * line['flow_speed'] * 5 + dot_data['wave_offset']) * dot_data['wave_amp']
+                current_angle = dot_data['base_angle'] + self.rotation
+                
+                # 3D projection - dots move along the latitude ring
+                dot_x = screen_x + int(math.cos(current_angle) * ring_r)
+                dot_y = screen_y + int(y_off + math.sin(current_angle * 3 + self.pulse_timer * 2) * wave)
+                
+                # Only draw dots on the "front" half of the sphere (simple depth check)
+                depth = math.sin(current_angle)
+                if depth > -0.3:  # Show front-ish dots
+                    # Size varies with depth for 3D effect
+                    size = max(1, int(dot_data['size'] * (0.5 + depth * 0.5)))
+                    # Alpha/brightness varies with depth
+                    if is_white_mode:
+                        brightness = max(20, int(40 * (0.3 + depth * 0.7)))
+                        color = (brightness, brightness, brightness + 10)
+                    else:
+                        brightness = max(150, int(255 * (0.5 + depth * 0.5)))
+                        color = (brightness, brightness, min(255, brightness + 20))
+                    
+                    pygame.draw.circle(screen, color, (dot_x, dot_y), size)
+        
+        # Draw dark center core
+        core_radius = int(self.radius * 0.3 * pulse)
+        pygame.draw.circle(screen, core_color, (screen_x, screen_y), core_radius)
+        
+        # Draw subtle glow at center
+        glow_radius = max(3, int(5 * pulse))
+        if is_white_mode:
+            pygame.draw.circle(screen, (60, 50, 80), (screen_x, screen_y), glow_radius)
+        else:
+            pygame.draw.circle(screen, (180, 170, 200), (screen_x, screen_y), glow_radius)
+
+
+class Shard:
+    """A triangular shard from the player's shattered body"""
+    def __init__(self, x, y, color, speed_mult=1.0):
+        self.x = x
+        self.y = y
+        self.color = color
+        
+        # Random velocity (explode outwards)
+        angle = random.uniform(0, 6.28)
+        speed = random.uniform(2, 8) * speed_mult
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed - random.uniform(2, 5) # Initial upward pop
+        
+        self.gravity = 0.5
+        
+        # Triangle shape offsets
+        size = random.randint(5, 12)
+        self.points = [
+            (random.uniform(-size, size), random.uniform(-size, size)),
+            (random.uniform(-size, size), random.uniform(-size, size)),
+            (random.uniform(-size, size), random.uniform(-size, size))
+        ]
+        
+        self.angle = 0
+        self.rot_speed = random.uniform(-0.2, 0.2)
+        
+        self.alpha = 255
+        self.fade_speed = random.uniform(2, 5)
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+        self.vy += self.gravity
+        self.angle += self.rot_speed
+        
+        self.alpha -= self.fade_speed
+        if self.alpha < 0: self.alpha = 0
+
+    def draw(self, screen, camera=None, offset=(0,0)):
+        if self.alpha <= 0: return
+
+        ox, oy = offset
+        if camera:
+            cx, cy = camera.apply_point(self.x, self.y)
+        else:
+            cx, cy = self.x - ox, self.y - oy
+
+        # Rotate points
+        rotated_pts = []
+        cos_a = math.cos(self.angle)
+        sin_a = math.sin(self.angle)
+        
+        for px, py in self.points:
+            # Rotate
+            rx = px * cos_a - py * sin_a
+            ry = px * sin_a + py * cos_a
+            # Translate
+            rotated_pts.append((cx + rx, cy + ry))
             
-            # Draw ring
-            if len(points) > 2:
-                color = (40, 0, 60) if is_white_mode else (100, 50, 150)
-                pygame.draw.polygon(screen, color, points, 2)
+        # Draw with alpha manually since direct polygon alpha is tricky
+        # Just drawing solid for now as per previous plan, maybe implement temp surface if fading looks bad
+        # Re-using the temp surface approach from previous attempt logic
         
-        # Core (solid black center)
-        core_radius = int(25 * pulse)
-        pygame.draw.circle(screen, (0, 0, 0), (int(cx), int(cy)), core_radius)
+        min_x = min([p[0] for p in rotated_pts])
+        max_x = max([p[0] for p in rotated_pts])
+        min_y = min([p[1] for p in rotated_pts])
+        max_y = max([p[1] for p in rotated_pts])
+        w = int(max_x - min_x) + 2
+        h = int(max_y - min_y) + 2
         
-        # Inner swirl lines
-        for i in range(6):
-            angle = self.rotation * 2 + (i / 6) * 2 * math.pi
-            inner_r = 10
-            outer_r = core_radius - 3
-            x1 = cx + math.cos(angle) * inner_r
-            y1 = cy + math.sin(angle) * inner_r
-            x2 = cx + math.cos(angle + 0.5) * outer_r
-            y2 = cy + math.sin(angle + 0.5) * outer_r
-            pygame.draw.line(screen, (80, 40, 100), (x1, y1), (x2, y2), 2)
-        
-        # Center highlight
-        pygame.draw.circle(screen, (60, 30, 80), (int(cx), int(cy)), 8)
+        if w > 0 and h > 0:
+            s = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf_pts = [(p[0] - min_x, p[1] - min_y) for p in rotated_pts]
+            color_with_alpha = (*self.color, int(self.alpha))
+            pygame.draw.polygon(s, color_with_alpha, surf_pts)
+            screen.blit(s, (min_x, min_y))
+
