@@ -1,8 +1,9 @@
 import pygame
 import sys
+import traceback
 import random
 from .settings import *
-from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave
+from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave, BlackHole, Shard
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin
@@ -43,20 +44,27 @@ def run():
     
     # Camera object (optional, currently using manual offset)
     camera = None
+    
+    # Current Level Tracking
+    current_level = 1
 
-    def reset_game():
+    def reset_game(level=1):
+        nonlocal current_level
+        current_level = level
+        
         # Create player (starts as WHITE character)
         player = Player(100, 100)
     
         # Fixed Level Layout (Based on Reference Image approximation)
         # Sequence of platforms going Right and Up
         
-        map_width = 6000
+        map_width = 9000
         map_height = 2000
         base_y = map_height - 200
         
-        platforms_data = [
-              # Tutorial platforms data 
+        # Level 1 Platforms
+        level1_platforms = [
+             # level 1 
              {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
              {'x': 700, 'y': base_y-100, 'w': 100, 'type': 'white'},
              {'x': 900, 'y': base_y-200, 'w': 100, 'type': 'black'},
@@ -81,12 +89,93 @@ def run():
              {'x': 6700, 'y': base_y-200, 'w': 300, 'type': 'neutral'},
              {'x': 7150, 'y': base_y-300, 'w': 200, 'type': 'white'},
              {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
-             {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
-
+             {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},  # Door platform
         ]
+        
+        # Level 2 Platforms (Similar layout, starts where level 1 ends)
+        level2_platforms = [
+             # level 2 - Similar flow with different challenges
+             {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+             {'x': 600, 'y': base_y-100, 'w': 200, 'type': 'white'},
+             {'x': 900, 'y': base_y-200, 'w': 200, 'type': 'black'},
+             {'x': 1200, 'y': base_y-300, 'w': 50, 'type': 'neutral'}, 
+
+            #White side
+             {'x': 1400, 'y': base_y-400, 'w': 50, 'type': 'white'},
+             {'x': 1600, 'y': base_y-500, 'w': 50, 'type': 'white'},
+             {'x': 1800, 'y': base_y-600, 'w': 50, 'type': 'white'},
+             {'x': 2000, 'y': base_y-600, 'w': 200, 'type': 'white', 'is_slider': True}, # glider 
+             {'x': 2300, 'y': base_y-1600, 'w': 200, 'type': 'neutral'},
+             {'x': 2500, 'y': base_y-1200, 'w': 2800, 'type': 'neutral'}, # upper platform
+
+             {'x': 2600, 'y': base_y-1500, 'w': 200, 'type': 'white'},
+             {'x': 2900, 'y': base_y-1400, 'w': 200, 'type': 'white'},
+             {'x': 3200, 'y': base_y-1300, 'w': 500, 'type': 'neutral'},
+             {'x': 3700, 'y': base_y-1400, 'w': 50, 'type': 'black'},
+             {'x': 3800, 'y': base_y-1430, 'w': 500, 'type': 'neutral'},
+             {'x': 3750, 'y': base_y-1550, 'w': 50, 'type': 'white'},
+             {'x': 3200, 'y': base_y-1600, 'w': 500, 'type': 'neutral'},
+             {'x': 3800, 'y': base_y-1700, 'w': 50, 'type': 'black'},
+             {'x': 4000, 'y': base_y-1800, 'w': 500, 'type': 'neutral'},
+             {'x': 4500, 'y': base_y-1900, 'w': 200, 'type': 'white'},
+             {'x': 4750, 'y': base_y-1750, 'w': 50, 'type': 'white'},
+             {'x': 4800, 'y': base_y-1600, 'w': 500, 'type': 'neutral'},
+             {'x': 5300, 'y': base_y-1700, 'w': 50, 'type': 'black'},
+             {'x': 5400, 'y': base_y-1800, 'w': 50, 'type': 'white'},
+             {'x': 5500, 'y': base_y-1550, 'w': 100, 'type': 'white'},
+             {'x': 5200, 'y': base_y-1430, 'w': 300, 'type': 'neutral', 'has_spikes': True}, # spiky platform 1
+             {'x': 4500, 'y': base_y-1300, 'w': 1050, 'type': 'neutral'},
+             {'x': 5640, 'y': base_y-1400, 'w': 200, 'type': 'neutral', 'has_spikes': True}, # spiky platform 2
+             {'x': 5680, 'y': base_y-1100, 'w': 100, 'type': 'white'},
+             {'x': 5900, 'y': base_y-900, 'w': 100, 'type': 'white'}, 
+             {'x': 6100, 'y': base_y-700, 'w': 100, 'type': 'white'}, 
+
+
+
+            #Black side
+             {'x': 1400, 'y': base_y-200, 'w': 50, 'type': 'black'},
+             {'x': 1650, 'y': base_y-0, 'w': 50, 'type': 'black'},
+             {'x': 1900, 'y': base_y+100, 'w': 50, 'type': 'black'},
+             {'x': 2150, 'y': base_y+200, 'w': 50, 'type': 'black'},
+             {'x': 2400, 'y': base_y+300, 'w': 50, 'type': 'black'},
+             {'x': 2600, 'y': base_y+300, 'w': 2800, 'type': 'neutral', 'is_mystical': True}, # mystical floor
+
+             # Mystical floor maze
+             {'x': 2800, 'y': base_y+300-100, 'w': 200, 'type': 'black'},
+             {'x': 3100, 'y': base_y+300-200, 'w': 200, 'type': 'black'},
+             {'x': 3400, 'y': base_y+300-300, 'w': 150, 'type': 'white'},
+             {'x': 3250, 'y': base_y+300-400, 'w': 150, 'type': 'black'},
+             {'x': 2950, 'y': base_y+300-500, 'w': 150, 'type': 'white'},
+             {'x': 3250, 'y': base_y+300-600, 'w': 120, 'type': 'black'},
+             {'x': 3450, 'y': base_y+300-700, 'w': 200, 'type': 'white'},
+             {'x': 3920, 'y': base_y+300-300, 'w': 150, 'type': 'neutral'},
+             {'x': 4200, 'y': base_y+300-400, 'w': 150, 'type': 'neutral'},
+             {'x': 4400, 'y': base_y+300-200, 'w': 150, 'type': 'black'},
+             {'x': 4600, 'y': base_y+300-300, 'w': 50, 'type': 'neutral'},
+             {'x': 4720, 'y': base_y+300-400, 'w': 50, 'type': 'black'},
+             {'x': 4500, 'y': base_y+300-450, 'w': 200, 'type': 'white'},
+
+             {'x': 4100, 'y': base_y+300-500, 'w': 250, 'type': 'white'},
+             {'x': 4420, 'y': base_y+300-600, 'w': 150, 'type': 'black'},
+             {'x': 4600, 'y': base_y+300-700, 'w': 20, 'type': 'neutral'},
+             {'x': 4700, 'y': base_y+300-800, 'w': 150, 'type': 'white'},
+             {'x': 4900, 'y': base_y+300-650, 'w': 80, 'type': 'black'},
+             {'x': 5100, 'y': base_y+300-400, 'w': 80, 'type': 'white'},
+             {'x': 5300, 'y': base_y+300-250, 'w': 80, 'type': 'black'},
+             {'x': 5500, 'y': base_y+300-250, 'w': 400, 'type': 'neutral'},
+             {'x': 5900, 'y': base_y+300-250, 'w': 200, 'type': 'neutral', 'is_slider': True, 'slider_range': 450}, # glider 2 
+             {'x': 6100, 'y': base_y+300-700, 'w': 1000, 'type': 'neutral'}, # end with an enemy gurading the portal
+
+        ]   
+        # Select platforms based on level
+        if level == 1:
+            platforms_data = level1_platforms
+        else:
+            platforms_data = level2_platforms
         
         platforms = []
         spikes = []
+        doors = []
         
         # Player Start
         player.x = 150
@@ -100,50 +189,76 @@ def run():
                 is_white = False
                 is_neutral = False
                 
-            plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral)
+            is_slider = p_data.get('is_slider', False)
+            is_mystical = p_data.get('is_mystical', False)
+            plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000))
             platforms.append(plat)
             
-            # NO SPIKES GENERATED
-            
-        # Spawn Enemies
-        # Helper function to spawn based on level data
-        def spawn_enemies_for_level(plat_data):
-            spawned = []
-            if not plat_data:
-                return spawned
-                
-            # User Request: Spawn on the LAST platform by default
-            last_plat = plat_data[-1]
-            
-            # center x of platform
-            spawn_x = last_plat['x'] + last_plat['w'] // 2 - 25 # -25 for half enemy width
-            spawn_y = last_plat['y'] - 60 # Above platform
-            
-        # Spawn enemy on the last platform
-        last_plat = platforms_data[-1]
-        enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25  # Center of platform
-        enemy_y = last_plat['y'] - 60  # Above platform
+            # Special: Add spikes to the wide neutral platform (User Request)
+            # Ensure we don't double-add to the mystical floor (which handles its own spikes)
+            if (p_data['w'] == 2800 or p_data.get('has_spikes')) and p_data.get('type') == 'neutral' and not p_data.get('is_mystical', False):
+                spike_w = 30
+                num_spikes = int(p_data['w'] / spike_w)
+                for i in range(num_spikes):
+                    # Spikes sit on TOP of platform
+                    sx = p_data['x'] + i * spike_w
+                    # Randomize height for crystal look
+                    h = random.randint(25, 50)
+                    sy = p_data['y'] - h 
+                    # Create mystical/crystal spike (neutral deadly)
+                    spikes.append(Spike(sx, sy, width=spike_w, height=h, is_neutral=True, is_mystical=True))
         
-        # Spawn enemy on the big middle platform (index 7 - the 1500-wide neutral)
-        middle_plat = platforms_data[7]  # {'x': 2900, 'y': base_y-200, 'w': 1500, 'type': 'neutral'}
-        middle_enemy_x = middle_plat['x'] + middle_plat['w'] // 2 - 25
-        middle_enemy_y = middle_plat['y'] - 60
+        # Add black hole portal at end of level 1
+        if level == 1:
+            # Black hole center position at end of last platform
+            last_plat = platforms_data[-1]
+            portal_x = last_plat['x'] + last_plat['w'] - 100  # Near right edge
+            portal_y = last_plat['y'] - 50  # Floating above platform
+            doors.append(BlackHole(portal_x, portal_y, radius=90, target_level=2))
         
-        enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
+        # Spawn enemies based on level
+        enemies = []
+        if level == 1:
+            # Enemy on the big middle platform (index 7)
+            middle_plat = platforms_data[7]
+            middle_enemy_x = middle_plat['x'] + middle_plat['w'] // 2 - 25
+            middle_enemy_y = middle_plat['y'] - 60
+            enemies.append(MirrorRonin(middle_enemy_x, middle_enemy_y))
+            
+            # Enemy on the LAST platform (near the portal)
+            last_plat = platforms_data[-1]
+            last_enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
+            last_enemy_y = last_plat['y'] - 60
+            last_enemy = MirrorRonin(last_enemy_x, last_enemy_y)
+            # Set boundary so enemy doesn't go past the portal (at x=8620)
+            last_enemy.boundary_x_max = last_plat['x'] + last_plat['w'] - 150  # Stop before portal
+            last_enemy.boundary_x_min = last_plat['x'] + 50  # Don't fall off left edge
+            enemies.append(last_enemy)
+        elif level == 2:
+            # No enemies in mystical zone - the maze is the challenge
+            pass
+
         
         projectiles = []
         effects = []
-        return player, platforms, spikes, projectiles, effects, enemies
+        return player, platforms, spikes, projectiles, effects, enemies, doors
 
-    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+    player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(DEV_START_LEVEL)
 
-    # Main game loop
+    # Main Game Loop
     running = True
+    paused = False
+    
+    # Death State (NO animation - just instant Game Over)
+    game_over = False
+    
+    def trigger_death():
+        nonlocal game_over
+        game_over = True
     
     # Tension Mechanics State
     tension_duration = 0.0
     overload_timer = 0.0
-    game_over = False
     crumble_effect = None
     
     # Forced Mode State (Mental Drain)
@@ -160,12 +275,18 @@ def run():
     max_radius = int((SCREEN_WIDTH**2 + SCREEN_HEIGHT**2)**0.5) + 50
     transition_center = (0, 0)
     
+
+    
     # Pause Menu State
     paused = False
-    menu_state = "PAUSE" # PAUSE, OPTIONS
-    pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
+    menu_state = "PAUSE" # PAUSE, OPTIONS, CONSOLE
+    pause_menu_options = ["Continue", "Restart", "Options", "Console", "Main Menu"]
     options_menu_options = ["Toggle Fullscreen", "Reticle Sensitivity", "Back"]
     pause_selected = 0  # Currently highlighted option
+    
+    # Console state
+    console_input = ""
+    console_message = ""
     
     # Sensitivity setting (1.0 = default, 0.5 = slow, 2.0 = fast)
     reticle_sensitivity = 1.0
@@ -183,6 +304,50 @@ def run():
     while running:
         dt = clock.tick(FPS) / 1000.0
         
+        # --- GAME OVER LOGIC (NO ANIMATION) ---
+        if game_over:
+            # Input: R to Restart
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                     running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        # Restart
+                        player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(current_level)
+                        game_over = False
+                        paused = False
+                        tension_duration = 0.0
+                        overload_timer = 0.0
+                        forced_black_mode_timer = 0.0
+                        scroll_x = 0
+                        scroll_y = 0
+                        transition_active = False
+
+
+            # Draw "Mind Fractured" Static Background
+            half_w = SCREEN_WIDTH // 2
+            pygame.draw.rect(screen, CREAM, (0, 0, half_w, SCREEN_HEIGHT))
+            pygame.draw.rect(screen, BLACK_MATTE, (half_w, 0, half_w, SCREEN_HEIGHT))
+            
+            # Text
+            font = pygame.font.Font(None, 100)
+            
+            text_game = font.render("GAME", True, BLACK_MATTE)
+            text_rect_g = text_game.get_rect(center=(half_w - 150, SCREEN_HEIGHT/2 - 50))
+            screen.blit(text_game, text_rect_g)
+            
+            text_over = font.render("OVER", True, CREAM)
+            text_rect_o = text_over.get_rect(center=(half_w + 150, SCREEN_HEIGHT/2 - 50))
+            screen.blit(text_over, text_rect_o)
+            
+            font_s = pygame.font.Font(None, 40)
+            msg = font_s.render("Press R to Restart", True, (150, 150, 150))
+            msg_rect = msg.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 50))
+            screen.blit(msg, msg_rect)
+            
+            pygame.display.flip()
+            continue
+        
         # Update Forced Timer
         if forced_black_mode_timer > 0:
             forced_black_mode_timer -= dt
@@ -197,14 +362,13 @@ def run():
                 if game_over:
                     if event.key == pygame.K_r:
                         # Restart
-                        player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                        player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(current_level)
                         tension_duration = 0.0
                         overload_timer = 0.0
                         forced_black_mode_timer = 0.0
                         scroll_x = 0
                         scroll_y = 0
                         game_over = False
-                        crumble_effect = None
                         crumble_effect = None
                         transition_active = False
                 else:
@@ -214,6 +378,11 @@ def run():
                         if menu_state == "OPTIONS":
                             menu_state = "PAUSE"
                             pause_selected = 0
+                        elif menu_state == "CONSOLE":
+                            menu_state = "PAUSE"
+                            pause_selected = 0
+                            console_input = ""
+                            console_message = ""
                         else:
                             paused = not paused
                             menu_state = "PAUSE"
@@ -221,59 +390,90 @@ def run():
                     
                     # Pause Menu Navigation
                     elif paused:
-                        # Shared Navigation
-                        num_options = len(pause_menu_options) if menu_state == "PAUSE" else len(options_menu_options)
-                        
-                        if event.key == pygame.K_UP or event.key == pygame.K_w:
-                            pause_selected = (pause_selected - 1) % num_options
-                        elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
-                            pause_selected = (pause_selected + 1) % num_options
-                        elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
-                            # Execute selected option
-                            
-                            if menu_state == "PAUSE":
-                                selected_option = pause_menu_options[pause_selected]
-                                if selected_option == "Continue":
-                                    paused = False
-                                elif selected_option == "Restart":
-                                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
-                                    tension_duration = 0.0
-                                    overload_timer = 0.0
-                                    forced_black_mode_timer = 0.0
-                                    scroll_x = 0
-                                    scroll_y = 0
-                                    game_over = False
-                                    crumble_effect = None
-                                    transition_active = False
-                                    paused = False
-                                elif selected_option == "Options":
-                                    menu_state = "OPTIONS"
-                                    pause_selected = 0
-                                elif selected_option == "Main Menu":
-                                    pygame.quit()
-                                    return "main_menu"
-                                    
-                            elif menu_state == "OPTIONS":
-                                selected_option = options_menu_options[pause_selected]
-                                if selected_option == "Toggle Fullscreen":
-                                    # Toggle Logic
-                                    is_fullscreen = not is_fullscreen
-                                    if is_fullscreen:
-                                        # Native Fullscreen
-                                        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                        # Console input mode
+                        if menu_state == "CONSOLE":
+                            if event.key == pygame.K_RETURN:
+                                # Execute command
+                                cmd = console_input.strip().lower()
+                                if cmd == "tp_end":
+                                    # Teleport to last platform
+                                    if platforms:
+                                        last_platform = max(platforms, key=lambda p: p.x)
+                                        player.x = last_platform.x + last_platform.width // 2
+                                        player.y = last_platform.y - player.h - 10
+                                        scroll_x = max(0, player.x - SCREEN_WIDTH // 2)
+                                        console_message = "Teleported to end!"
+                                        paused = False
+                                        menu_state = "PAUSE"
                                     else:
-                                        # Windowed Default
-                                        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-                                    
-                                    # Recreate surfaces at new resolution
-                                    new_w, new_h = screen.get_size()
-                                    canvas = pygame.Surface((new_w, new_h))
-                                    old_screen_capture = pygame.Surface((new_w, new_h))
-                                    next_state_capture = pygame.Surface((new_w, new_h))
-                                    
-                                elif selected_option == "Back":
-                                    menu_state = "PAUSE"
-                                    pause_selected = 0
+                                        console_message = "No platforms found!"
+                                else:
+                                    console_message = f"Unknown command: {cmd}"
+                                console_input = ""
+                            elif event.key == pygame.K_BACKSPACE:
+                                console_input = console_input[:-1]
+                            else:
+                                # Add character to input
+                                if event.unicode.isprintable() and len(console_input) < 30:
+                                    console_input += event.unicode
+                        else:
+                            # Shared Navigation
+                            num_options = len(pause_menu_options) if menu_state == "PAUSE" else len(options_menu_options)
+                            
+                            if event.key == pygame.K_UP or event.key == pygame.K_w:
+                                pause_selected = (pause_selected - 1) % num_options
+                            elif event.key == pygame.K_DOWN or event.key == pygame.K_s:
+                                pause_selected = (pause_selected + 1) % num_options
+                            elif event.key == pygame.K_RETURN or event.key == pygame.K_SPACE:
+                                # Execute selected option
+                                
+                                if menu_state == "PAUSE":
+                                    selected_option = pause_menu_options[pause_selected]
+                                    if selected_option == "Continue":
+                                        paused = False
+                                    elif selected_option == "Restart":
+                                        player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(current_level)
+                                        tension_duration = 0.0
+                                        overload_timer = 0.0
+                                        forced_black_mode_timer = 0.0
+                                        scroll_x = 0
+                                        scroll_y = 0
+                                        game_over = False
+                                        crumble_effect = None
+                                        transition_active = False
+                                        paused = False
+                                    elif selected_option == "Options":
+                                        menu_state = "OPTIONS"
+                                        pause_selected = 0
+                                    elif selected_option == "Console":
+                                        menu_state = "CONSOLE"
+                                        console_input = ""
+                                        console_message = "Commands: tp_end"
+                                    elif selected_option == "Main Menu":
+                                        pygame.quit()
+                                        return "main_menu"
+                                        
+                                elif menu_state == "OPTIONS":
+                                    selected_option = options_menu_options[pause_selected]
+                                    if selected_option == "Toggle Fullscreen":
+                                        # Toggle Logic
+                                        is_fullscreen = not is_fullscreen
+                                        if is_fullscreen:
+                                            # Native Fullscreen
+                                            screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                                        else:
+                                            # Windowed Default
+                                            screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+                                        
+                                        # Recreate surfaces at new resolution
+                                        new_w, new_h = screen.get_size()
+                                        canvas = pygame.Surface((new_w, new_h))
+                                        old_screen_capture = pygame.Surface((new_w, new_h))
+                                        next_state_capture = pygame.Surface((new_w, new_h))
+                                        
+                                    elif selected_option == "Back":
+                                        menu_state = "PAUSE"
+                                        pause_selected = 0
                         
                         # Handle left/right for sensitivity adjustment
                         if menu_state == "OPTIONS" and options_menu_options[pause_selected] == "Reticle Sensitivity":
@@ -357,6 +557,15 @@ def run():
                 # Update Background Parallax
                 background.update(player.vel_x)
                 
+                # Update Platforms (Sliders) and move player with them
+                for plat in platforms:
+                    is_on_top = (player.current_platform == plat)
+                    platform_dy = plat.update(is_on_top)
+                    
+                    # If player is on this slider platform, move them with it
+                    if is_on_top and platform_dy != 0:
+                        player.y += platform_dy
+                
                 # Music Control - Play only in Peace Mode
                 if music_loaded:
                     if player.is_white:
@@ -380,13 +589,6 @@ def run():
                     tension_duration += dt
                     drain_status = "BUILDING (Black Mode)"
                 else: # Mask On (White/Peace)
-                    # Check for "Mental Drain" from active enemies
-                    for e in enemies:
-                        if isinstance(e, MirrorRonin) and not e.marked_for_deletion:
-                            dist = abs(e.x - player.x)
-                            if dist < 500: # Only drain if close (Proximity effect)
-                                active_ronins += 1
-                                
                     if active_ronins > 0:
                         tension_duration += dt * 0.4 * active_ronins
                         if tension_duration > 8.0:
@@ -417,7 +619,8 @@ def run():
                                   background=background,
                                   spikes=spikes,
                                   camera=camera,
-                                  enemies=enemies, 
+                                  enemies=enemies,
+                                  doors=doors,
                                   offset=camera_offset)
                          draw_distortion(old_screen_capture, intensity)
                          
@@ -429,7 +632,7 @@ def run():
                 if tension_duration >= 12.0 and not player.is_white:
                     overload_timer += dt
                     if overload_timer > 3.0:
-                        game_over = True
+                        trigger_death() # Overload Death
                 else:
                     overload_timer = 0.0
                 
@@ -442,20 +645,47 @@ def run():
                 
                 if scroll_x < 0:
                     scroll_x = 0
-                if scroll_y < 0: 
-                    scroll_y = 0
+                
+                # Allow negative scroll_y for high platforms
+                # if scroll_y < 0: 
+                #     scroll_y = 0
                 
                 camera_offset = (int(scroll_x), int(scroll_y))
                 
+                # Check spike collision (Standard Spikes)
+                for spike in spikes:
+                    if spike.get_rect().colliderect(player.get_rect().inflate(-10, -10)):
+                        trigger_death()
+                        break 
+                
+                # Check Mystical Platform Spikes
+                for plat in platforms:
+                    if plat.check_spike_collision(player.get_rect()):
+                        trigger_death()
+                        break
+
                 # Mouse position
                 mouse_pos_canvas = pygame.mouse.get_pos()
                 
                 # Update player
                 player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
                 
+                # --- CEILING COLLISION (Mystical Platforms) ---
+                for plat in platforms:
+                    if getattr(plat, 'is_mystical', False) and hasattr(plat, 'ceiling_hit_y'):
+                        # Horizontal check
+                        if player.x + player.width > plat.x and player.x < plat.x + plat.width:
+                            # Vertical check (Head hitting ceiling)
+                            # Check strictly if player is overlapping the ceiling line
+                            # (Head is above, but Feet are below)
+                            if player.y < plat.ceiling_hit_y and (player.y + player.height) > plat.ceiling_hit_y:
+                                player.y = plat.ceiling_hit_y
+                                if player.vel_y < 0:
+                                    player.vel_y = 0 # Head bonk
+                
                 # Check for void death - instant respawn
                 if player.fell_into_void:
-                    player, platforms, spikes, projectiles, effects, enemies = reset_game()
+                    player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(current_level)
                     tension_duration = 0.0
                     overload_timer = 0.0
                     forced_black_mode_timer = 0.0
@@ -463,6 +693,111 @@ def run():
                     scroll_y = 0
                     transition_active = False
                     continue  # Skip rest of update this frame
+                
+                # Portal (Black Hole) Update and Collision Logic
+                level_transition_triggered = False
+                for door in doors:
+                    door.update(dt)
+                    
+                    # Check if player collides with portal
+                    if door.check_collision(player.get_rect()):
+                        # Trigger level transition
+                        next_level = door.target_level
+                        level_transition_triggered = True
+                        
+                        # Get screen dimensions
+                        sw, sh = screen.get_size()
+                        
+                        # === SIMPLE FADE TO BLACK ===
+                        for alpha in range(0, 256, 8):
+                            # Draw black overlay with increasing opacity
+                            overlay = pygame.Surface((sw, sh))
+                            overlay.fill((0, 0, 0))
+                            overlay.set_alpha(alpha)
+                            screen.blit(overlay, (0, 0))
+                            pygame.display.flip()
+                            clock.tick(60)
+                            
+                            for event in pygame.event.get():
+                                if event.type == pygame.QUIT:
+                                    pygame.quit()
+                                    sys.exit()
+                        
+                        # Full black screen for a moment
+                        screen.fill((0, 0, 0))
+                        pygame.display.flip()
+                        
+                        # Reset to new level
+                        try:
+                            # Update current level and reset
+                            current_level = next_level
+                            player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(next_level)
+                            console_message = f"Level {next_level} Loaded"
+                        except Exception as e:
+                            
+                            # Log error to file
+                            with open("crash_log.txt", "w") as f:
+                                traceback.print_exc(file=f)
+                            print(f"CRASH: {e}")
+                            console_message = f"Error loading Level {next_level}. Fallback to L1."
+                            
+                            # Fallback to level 1
+                            current_level = 1
+                            player, platforms, spikes, projectiles, effects, enemies, doors = reset_game(1)
+                        tension_duration = 0.0
+                        overload_timer = 0.0
+                        forced_black_mode_timer = 0.0
+                        scroll_x = 0
+                        scroll_y = 0
+                        transition_active = False
+                        
+                        # Check spike collision (Standard Spikes)
+                for spike in spikes:
+                    if spike.get_rect().colliderect(player.get_rect().inflate(-10, -10)):
+                        trigger_death()
+                        break # Stop checking others
+                
+                # Check Mystical Platform Spikes
+                for plat in platforms:
+                    if plat.check_spike_collision(player.get_rect()):
+                        trigger_death()
+                        break
+                        # === SIMPLE FADE FROM BLACK ===
+                        for alpha in range(255, -1, -8):
+                            # Draw new game state
+                            bg_color = CREAM if player.is_white else BLACK_MATTE
+                            canvas.fill(bg_color)
+                            
+                            # Draw platforms
+                            for plat in platforms:
+                                plat.draw(canvas, player.is_white, offset=(0, 0))
+                            
+                            # Draw doors
+                            for d in doors:
+                                d.draw(canvas, player.is_white, offset=(0, 0))
+                            
+                            # Draw player
+                            player.draw(canvas, offset=(0, 0))
+                            
+                            screen.blit(canvas, (0, 0))
+                            
+                            # Draw black overlay with decreasing opacity
+                            overlay = pygame.Surface((sw, sh))
+                            overlay.fill((0, 0, 0))
+                            overlay.set_alpha(alpha)
+                            screen.blit(overlay, (0, 0))
+                            pygame.display.flip()
+                            clock.tick(60)
+                            
+                            for event in pygame.event.get():
+                                if event.type == pygame.QUIT:
+                                    pygame.quit()
+                                    sys.exit()
+                        
+                        break  # Exit the door loop
+                
+                if level_transition_triggered:
+                    continue  # Skip rest of this frame's update
                 
                 # Projectile Logic
                 for proj in projectiles[:]:
@@ -582,6 +917,8 @@ def run():
             # Update Camera
             # camera.update(player)
             
+
+            
             # --- DRAW SEQUENCE ---
             
             if transition_active:
@@ -595,7 +932,8 @@ def run():
                          background=background, 
                          spikes=spikes, 
                          camera=camera, 
-                         enemies=enemies, 
+                         enemies=enemies,
+                         doors=doors,
                          offset=camera_offset)
                 # Apply NEW distortion (likely 0 if swapping to White, or building up if Black)
                 draw_distortion(next_state_capture, intensity)
@@ -629,9 +967,12 @@ def run():
                          background=background, 
                          spikes=spikes, 
                          camera=camera, 
-                         enemies=enemies, 
+                         enemies=enemies,
+                         doors=doors,
                          offset=camera_offset)
                 draw_distortion(canvas, intensity)
+                
+
 
             # Final Blit to Screen with Shake
             # Fill with current BG color to hide borders if shake exposes them
@@ -676,34 +1017,63 @@ def run():
                 menu_font = pygame.font.Font(None, 50)
                 title_font = pygame.font.Font(None, 80)
                 
-                # Title
-                title_text = "PAUSED" if menu_state == "PAUSE" else "OPTIONS"
-                title_surf = title_font.render(title_text, True, WHITE)
-                screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
-                
-                # Options
-                options_to_draw = pause_menu_options if menu_state == "PAUSE" else options_menu_options
-                
-                start_y = 250
-                gap_y = 60
-                
-                for i, option in enumerate(options_to_draw):
-                    color = WHITE
-                    text = option
+                if menu_state == "CONSOLE":
+                    # Console UI
+                    title_surf = title_font.render("CONSOLE", True, WHITE)
+                    screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
                     
-                    # Special handling for sensitivity display
-                    if option == "Reticle Sensitivity":
-                        text = f"Reticle Sensitivity: {reticle_sensitivity:.1f}x"
+                    # Input box
+                    input_box_width = 400
+                    input_box_height = 50
+                    input_box_x = sw//2 - input_box_width//2
+                    input_box_y = 280
                     
-                    if i == pause_selected:
-                        color = (255, 200, 50) # Highlight Color (Gold)
-                        if option == "Reticle Sensitivity":
-                            text = f"< {text} >"
-                        else:
-                            text = f"> {text} <"
+                    pygame.draw.rect(screen, (40, 40, 50), (input_box_x, input_box_y, input_box_width, input_box_height))
+                    pygame.draw.rect(screen, (100, 100, 120), (input_box_x, input_box_y, input_box_width, input_box_height), 2)
+                    
+                    # Input text with cursor
+                    cursor = "_" if int(pygame.time.get_ticks() / 500) % 2 == 0 else ""
+                    input_surf = menu_font.render(f"> {console_input}{cursor}", True, (200, 255, 200))
+                    screen.blit(input_surf, (input_box_x + 10, input_box_y + 10))
+                    
+                    # Message
+                    if console_message:
+                        msg_color = (100, 255, 100) if "Teleported" in console_message else (255, 200, 100)
+                        msg_surf = pygame.font.Font(None, 36).render(console_message, True, msg_color)
+                        screen.blit(msg_surf, (sw//2 - msg_surf.get_width()//2, input_box_y + 70))
+                    
+                    # Hint
+                    hint_surf = pygame.font.Font(None, 30).render("Press ESC to close | Commands: tp_end", True, (150, 150, 150))
+                    screen.blit(hint_surf, (sw//2 - hint_surf.get_width()//2, input_box_y + 120))
+                else:
+                    # Title
+                    title_text = "PAUSED" if menu_state == "PAUSE" else "OPTIONS"
+                    title_surf = title_font.render(title_text, True, WHITE)
+                    screen.blit(title_surf, (sw//2 - title_surf.get_width()//2, 150))
+                    
+                    # Options
+                    options_to_draw = pause_menu_options if menu_state == "PAUSE" else options_menu_options
+                    
+                    start_y = 250
+                    gap_y = 60
+                    
+                    for i, option in enumerate(options_to_draw):
+                        color = WHITE
+                        text = option
                         
-                    opt_surf = menu_font.render(text, True, color)
-                    screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
+                        # Special handling for sensitivity display
+                        if option == "Reticle Sensitivity":
+                            text = f"Reticle Sensitivity: {reticle_sensitivity:.1f}x"
+                        
+                        if i == pause_selected:
+                            color = (255, 200, 50) # Highlight Color (Gold)
+                            if option == "Reticle Sensitivity":
+                                text = f"< {text} >"
+                            else:
+                                text = f"> {text} <"
+                            
+                        opt_surf = menu_font.render(text, True, color)
+                        screen.blit(opt_surf, (sw//2 - opt_surf.get_width()//2, start_y + i * gap_y))
 
         elif game_over:
             # Game Over State (Pixel Crumble)

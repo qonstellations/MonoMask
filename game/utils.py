@@ -39,7 +39,7 @@ class Camera:
 
 # Helper function to draw the game state
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0)):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, doors=None, offset=(0,0)):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -61,6 +61,11 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
         # Let's update Platform.draw to accept camera, or offset the context?
         # Easier: Pass camera to draw()
         platform.draw(surface, is_white_mode, camera=camera, offset=offset)
+
+    # Draw doors
+    if doors:
+        for door in doors:
+            door.draw(surface, is_white_mode, camera=camera, offset=offset)
 
     # Draw enemies
     if enemies:
