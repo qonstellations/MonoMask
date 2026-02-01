@@ -1,5 +1,6 @@
 import pygame
 import sys
+import traceback
 from game.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 from game import run as run_game
 from game.menu import MainMenu
@@ -106,4 +107,14 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        # Log to file
+        with open("crash_log_global.txt", "w") as f:
+            traceback.print_exc(file=f)
+        
+        # Print to console
+        traceback.print_exc()
+        print("\nCRASH DETECTED! Log written to crash_log_global.txt")
+        input("Press Enter to exit...")
