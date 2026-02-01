@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "D:\MonoMask\main.py", line 7, in <module>
+    run()
+    ~~~^^
+  File "D:\MonoMask\game\core.py", line 922, in run
+    draw_game(canvas, player.is_white, player,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+             platforms=platforms,
+             ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+             doors=doors,
+             ^^^^^^^^^^^^
+             offset=camera_offset)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\MonoMask\game\utils.py", line 63, in draw_game
+    platform.draw(surface, is_white_mode, camera=camera, offset=offset)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\MonoMask\game\sprites.py", line 967, in draw
+    elif self.is_lantern_cave:
+         ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Platform' object has no attribute 'is_lantern_cave'

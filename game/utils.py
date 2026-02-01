@@ -61,6 +61,16 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
         # Easier: Pass camera to draw()
         platform.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
 
+    # Draw doors
+    if doors:
+        for door in doors:
+            door.draw(surface, is_white_mode, camera=camera, offset=offset)
+
+    # Draw doors
+    if doors:
+        for door in doors:
+            door.draw(surface, is_white_mode, camera=camera, offset=offset)
+
     # Draw enemies
     if enemies:
         for enemy in enemies:

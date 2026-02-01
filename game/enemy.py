@@ -107,6 +107,14 @@ class MirrorRonin:
             
             if not ground_found:
                 self.vel_x = 0
+        
+        # Boundary Enforcement (if set)
+        if hasattr(self, 'boundary_x_min') and self.x + self.vel_x < self.boundary_x_min:
+            self.vel_x = 0
+            self.x = self.boundary_x_min
+        if hasattr(self, 'boundary_x_max') and self.x + self.vel_x > self.boundary_x_max:
+            self.vel_x = 0
+            self.x = self.boundary_x_max
             
         # Apply Horizontal Move
         self.x += self.vel_x
