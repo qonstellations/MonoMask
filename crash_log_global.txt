@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "D:\MonoMask\main.py", line 111, in <module>
+    main()
+    ~~~~^^
+  File "D:\MonoMask\main.py", line 89, in main
+    result = run_game(screen, settings)
+  File "D:\MonoMask\game\core.py", line 401, in run
+    player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(current_level)
+                                                                              ~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "D:\MonoMask\game\core.py", line 351, in reset_game
+    plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000), is_pillar=is_pillar)
+TypeError: Platform.__init__() got an unexpected keyword argument 'is_pillar'

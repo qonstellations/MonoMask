@@ -4,7 +4,7 @@ SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
 DEV_NO_GRAVITY = True # Disable gravity for testing
-DEV_START_LEVEL = 2 # Start directly at level 2 for testing
+DEV_START_LEVEL = 0 # Start directly at level 2 for testing
 
 # Colors
 WHITE = (240, 240, 230) # Cream/Off-White
