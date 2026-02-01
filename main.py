@@ -23,6 +23,14 @@ def main():
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), flags)
         
     pygame.display.set_caption("MonoMask")
+    
+    # Set window icon
+    import os
+    icon_path = os.path.join(os.path.dirname(__file__), "assets", "logo.jpeg")
+    if os.path.exists(icon_path):
+        icon = pygame.image.load(icon_path)
+        pygame.display.set_icon(icon)
+    
     clock = pygame.time.Clock()
     
     # State: MENU, GAME
