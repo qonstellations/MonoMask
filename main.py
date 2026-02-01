@@ -125,4 +125,5 @@ if __name__ == "__main__":
         # Print to console
         traceback.print_exc()
         print("\nCRASH DETECTED! Log written to crash_log_global.txt")
-        input("Press Enter to exit...")
+        pygame.quit()
+        sys.exit()

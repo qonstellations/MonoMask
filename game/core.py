@@ -6,8 +6,7 @@ from .settings import *
 from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave, BlackHole, Shard
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
-from .enemy import MirrorRonin
-
+from .enemy import MirrorRonin, ShadowSelf
 from .settings_manager import save_settings # Import settings manager
 
 def run(screen, settings, start_new_game=False):
@@ -140,71 +139,10 @@ def run(screen, settings, start_new_game=False):
         
         # Define level data based on current level
         if level == "TUTORIAL":
+            # ========== TEST ARENA FOR VILLAIN TESTING ==========
+            # Simple flat surface with boss in front of player
             platforms_data = [
-                # ========== SECTION 1: BASICS (Learning to move) ==========
-                # Starting area - large, safe
-                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
-                # Easy first jump (small gap, same height)
-                {'x': 500, 'y': base_y-100, 'w': 290, 'type': 'neutral'},
-                # Second easy jump
-                {'x': 890, 'y': base_y-180, 'w': 150, 'type': 'neutral'},
-                # Gentle rise (short gap, slight height)
-                {'x': 1200, 'y': base_y-50, 'w': 500, 'type': 'neutral'},
-                
-                # ========== SECTION 2: INTRODUCE WHITE PLATFORMS ==========
-                # Safe landing before white intro
-                {'x': 1800, 'y': base_y-120, 'w': 350, 'type': 'neutral'},
-                # First white platform (easy jump)
-                {'x': 2200, 'y': base_y-80, 'w': 250, 'type': 'white'},
-                # Second white platform (practice)
-                {'x': 2550, 'y': base_y-20, 'w': 250, 'type': 'white'},
-                # Back to neutral for breathing room
-                {'x': 2900, 'y': base_y-50, 'w': 400, 'type': 'neutral'},
-                
-                # ========== SECTION 3: INTRODUCE BLACK PLATFORMS ==========
-                # Black platform intro
-                {'x': 3400, 'y': base_y-100, 'w': 150, 'type': 'black'},
-                # Second black platform
-                {'x': 3650, 'y': base_y-130, 'w': 150, 'type': 'black'},
-                # Neutral rest area
-                {'x': 3900, 'y': base_y-50, 'w': 450, 'type': 'neutral'},
-                
-                # ========== SECTION 4: MIXED PLATFORMING ==========
-                # Alternating white and black
-                {'x': 4420, 'y': base_y-150, 'w': 80, 'type': 'white'},
-                {'x': 4150, 'y': base_y-280, 'w': 200, 'type': 'black'},
-                {'x': 4450, 'y': base_y-400, 'w': 250, 'type': 'white'},
-                # Large neutral landing
-                {'x': 4800, 'y': base_y-100, 'w': 600, 'type': 'neutral'},
-                
-                # ========== SECTION 5: MODERATE CHALLENGE ==========
-                # Rising platforms with gaps
-                {'x': 5500, 'y': base_y-200, 'w': 150, 'type': 'neutral'},
-                {'x': 5750, 'y': base_y-280, 'w': 150, 'type': 'white'},
-                {'x': 6000, 'y': base_y-360, 'w': 150, 'type': 'black'},
-                {'x': 6250, 'y': base_y-440, 'w': 150, 'type': 'neutral'},
-                # Descending back down
-                {'x': 6500, 'y': base_y-350, 'w': 150, 'type': 'white'},
-                {'x': 6750, 'y': base_y-260, 'w': 150, 'type': 'black'},
-                {'x': 7000, 'y': base_y-170, 'w': 200, 'type': 'neutral'},
-                
-                # ========== SECTION 6: LONGER JUMPS ==========
-                # Bigger gaps requiring commitment
-                {'x': 7400, 'y': base_y-150, 'w': 250, 'type': 'neutral'},
-                {'x': 7700, 'y': base_y-200, 'w': 220, 'type': 'white'},
-                {'x': 8000, 'y': base_y-250, 'w': 200, 'type': 'black'},
-                {'x': 8300, 'y': base_y-200, 'w': 350, 'type': 'neutral'},
-                
-                # ========== SECTION 7: FINAL APPROACH ==========
-                # Staircase up to the portal
-                {'x': 8750, 'y': base_y-250, 'w': 250, 'type': 'white'},
-                {'x': 9050, 'y': base_y-320, 'w': 250, 'type': 'black'},
-                {'x': 9350, 'y': base_y-390, 'w': 250, 'type': 'white'},
-                {'x': 9650, 'y': base_y-460, 'w': 250, 'type': 'black'},
-                
-                # ========== PORTAL AREA ==========
-                # Final safe zone with portal
-                {'x': 9950, 'y': base_y-460, 'w': 700, 'type': 'neutral'},
+                {'x': 50, 'y': base_y, 'w': 2000, 'type': 'neutral'},  # Large flat platform
             ]
         elif level == "LEVEL_1":
             # Level 1 and Level 2 - The original harder level (TODO: add unique LEVEL_2 layout)
@@ -234,6 +172,86 @@ def run(screen, settings, start_new_game=False):
                 {'x': 7150, 'y': base_y-300, 'w': 200, 'type': 'white'},
                 {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
                 {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
+            ]
+        elif level == "INNER_SANCTUM":  # THE INNER SANCTUM - Final Boss Level (Strategic/Puzzle-focused)
+            platforms_data = [
+                # ========== SECTION 1: THE AWAKENING (0-2500px) ==========
+                # Introduce the concept - think before you jump
+                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+                # First puzzle: White platform leads to black, must toggle mid-air or before
+                {'x': 550, 'y': base_y-100, 'w': 200, 'type': 'white'},
+                {'x': 850, 'y': base_y-100, 'w': 200, 'type': 'black'},  # Same height - must toggle!
+                {'x': 1150, 'y': base_y-50, 'w': 300, 'type': 'neutral'},
+                # Rising with alternation - plan your mode
+                {'x': 1550, 'y': base_y-150, 'w': 180, 'type': 'black'},
+                {'x': 1830, 'y': base_y-250, 'w': 180, 'type': 'white'},
+                {'x': 2100, 'y': base_y-150, 'w': 250, 'type': 'neutral'},
+                
+                # ========== SECTION 2: THE DESCENT CHOICE (2500-5000px) ==========
+                # Two paths visible - only one correct based on mode
+                {'x': 2450, 'y': base_y-250, 'w': 150, 'type': 'white'},
+                {'x': 2700, 'y': base_y-350, 'w': 150, 'type': 'black'},
+                # Upper route (black) vs lower route (white) - converge later
+                {'x': 3000, 'y': base_y-250, 'w': 200, 'type': 'white'},  # Lower path
+                {'x': 2950, 'y': base_y-500, 'w': 200, 'type': 'black'},  # Upper path
+                # Convergence
+                {'x': 3300, 'y': base_y-350, 'w': 300, 'type': 'neutral'},
+                # Triple mode puzzle - must switch twice
+                {'x': 3700, 'y': base_y-400, 'w': 180, 'type': 'white'},
+                {'x': 3980, 'y': base_y-450, 'w': 180, 'type': 'black'},
+                {'x': 4260, 'y': base_y-400, 'w': 180, 'type': 'white'},
+                {'x': 4540, 'y': base_y-300, 'w': 300, 'type': 'neutral'},
+                
+                # ========== SECTION 3: THE TOWER OF DUALITY (5000-8000px) ==========
+                # Vertical climb with strategic mode switching
+                {'x': 4940, 'y': base_y-400, 'w': 150, 'type': 'black'},
+                {'x': 5180, 'y': base_y-550, 'w': 150, 'type': 'white'},
+                {'x': 5420, 'y': base_y-700, 'w': 150, 'type': 'black'},
+                {'x': 5660, 'y': base_y-850, 'w': 200, 'type': 'neutral'},  # Rest point
+                # Horizontal gauntlet at height - think about timing
+                {'x': 5960, 'y': base_y-900, 'w': 200, 'type': 'black'},
+                {'x': 6260, 'y': base_y-900, 'w': 200, 'type': 'white'},
+                {'x': 6560, 'y': base_y-900, 'w': 200, 'type': 'black'},
+                # Descent requires opposite mode thinking
+                {'x': 6860, 'y': base_y-750, 'w': 180, 'type': 'white'},
+                {'x': 7140, 'y': base_y-600, 'w': 180, 'type': 'black'},
+                {'x': 7420, 'y': base_y-450, 'w': 180, 'type': 'white'},
+                {'x': 7700, 'y': base_y-300, 'w': 300, 'type': 'neutral'},
+                
+                # ========== SECTION 4: THE MAZE OF MINDS (8000-11000px) ==========
+                # Multiple platforms visible - only correct sequence works
+                {'x': 8100, 'y': base_y-350, 'w': 150, 'type': 'black'},
+                {'x': 8350, 'y': base_y-450, 'w': 150, 'type': 'black'},
+                {'x': 8300, 'y': base_y-250, 'w': 120, 'type': 'white'},  # Trap - leads nowhere!
+                {'x': 8600, 'y': base_y-550, 'w': 200, 'type': 'neutral'},
+                # Staircase illusion - must go up then down
+                {'x': 8900, 'y': base_y-650, 'w': 200, 'type': 'white'},
+                {'x': 9200, 'y': base_y-800, 'w': 150, 'type': 'black'},
+                {'x': 9450, 'y': base_y-650, 'w': 150, 'type': 'white'},  # Drop back down
+                {'x': 9700, 'y': base_y-500, 'w': 200, 'type': 'neutral'},
+                # The zigzag of fate - few but meaningful
+                {'x': 10000, 'y': base_y-600, 'w': 180, 'type': 'black'},
+                {'x': 10280, 'y': base_y-450, 'w': 180, 'type': 'white'},
+                {'x': 10560, 'y': base_y-350, 'w': 250, 'type': 'neutral'},
+                
+                # ========== SECTION 5: THE FINAL TRIAL (11000-14000px) ==========
+                # Long jumps with mode commitment - no going back
+                {'x': 10910, 'y': base_y-450, 'w': 200, 'type': 'white'},
+                {'x': 11250, 'y': base_y-550, 'w': 200, 'type': 'black'},
+                {'x': 11590, 'y': base_y-450, 'w': 200, 'type': 'white'},
+                {'x': 11930, 'y': base_y-350, 'w': 300, 'type': 'neutral'},
+                # Rising finale - each jump is a decision
+                {'x': 12350, 'y': base_y-500, 'w': 180, 'type': 'black'},
+                {'x': 12650, 'y': base_y-650, 'w': 180, 'type': 'white'},
+                {'x': 12950, 'y': base_y-800, 'w': 180, 'type': 'black'},
+                {'x': 13250, 'y': base_y-950, 'w': 200, 'type': 'neutral'},
+                # Last precision challenge - but still strategic (100px platforms)
+                {'x': 13580, 'y': base_y-1050, 'w': 100, 'type': 'white'},
+                {'x': 13800, 'y': base_y-1150, 'w': 100, 'type': 'black'},
+                {'x': 14020, 'y': base_y-1050, 'w': 100, 'type': 'white'},
+                
+                # ========== VICTORY: THE INNER SANCTUM ==========
+                {'x': 14250, 'y': base_y-1000, 'w': 700, 'type': 'neutral'},
             ]
         elif level == "LEVEL_2":
             platforms_data = [
@@ -359,7 +377,7 @@ def run(screen, settings, start_new_game=False):
             plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000), is_pillar=is_pillar)
             platforms.append(plat)
             
-        # Portal for levels (at end of last platform)
+        # Portal for levels with transitions
         portal = None
         if level in ["TUTORIAL", "LEVEL_1", "LEVEL_2", "LEVEL_3", "LEVEL_4"]:
             # Find the furthest platform
@@ -371,11 +389,10 @@ def run(screen, settings, start_new_game=False):
         # Spawn Enemies
         enemies = []
         if level == "TUTORIAL":
-            # Spawn enemy on the last platform of tutorial
-            last_plat = platforms_data[-1]
-            enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
-            enemy_y = last_plat['y'] - 60
-            enemies = [MirrorRonin(enemy_x, enemy_y)]
+            # TEST ARENA: Spawn ShadowSelf boss 600px ahead of player for testing
+            enemy_x = 700  # Player starts at ~150, so boss is 550px ahead
+            enemy_y = base_y - 210  # On the platform (200px height)
+            enemies = [ShadowSelf(enemy_x, enemy_y)]
         elif level == "LEVEL_1":
             # Spawn enemy on the last platform
             last_plat = platforms_data[-1]
@@ -388,6 +405,14 @@ def run(screen, settings, start_new_game=False):
             middle_enemy_y = middle_plat['y'] - 60
             
             enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
+        elif level == "INNER_SANCTUM":
+            # Strategic enemy placement - guards at decision points
+            enemies = [
+                MirrorRonin(3300 + 150, base_y - 350 - 60),  # At convergence point
+                MirrorRonin(5660 + 100, base_y - 850 - 60),  # Tower rest point
+                MirrorRonin(9700 + 100, base_y - 500 - 60),  # Maze exit
+                MirrorRonin(14250 + 350, base_y - 1000 - 60),  # Final boss at sanctum
+            ]
         elif level == "LEVEL_2":
             # Spawn enemy guarding the portal (last platform)
             last_plat = platforms_data[-1]
@@ -836,15 +861,26 @@ def run(screen, settings, start_new_game=False):
             
             sw, sh = screen.get_size()
             
-            # "LEVEL 1" text at top
+            # Level title text based on next level
             level_font = pygame.font.Font(None, 120)
-            level_text = level_font.render("LEVEL 1", True, (255, 255, 255))
+            sub_font = pygame.font.Font(None, 40)
+            
+            if next_level == "LEVEL_1":
+                level_title = "LEVEL 1"
+                sub_title = "The Journey Begins"
+            elif next_level == "INNER_SANCTUM":
+                level_title = "THE INNER SANCTUM"
+                sub_title = "Face Your Inner Demons"
+            else:
+                level_title = "LOADING"
+                sub_title = ""
+            
+            level_text = level_font.render(level_title, True, (255, 255, 255))
             level_rect = level_text.get_rect(center=(sw // 2, sh // 4))
             screen.blit(level_text, level_rect)
             
             # Subtitle
-            sub_font = pygame.font.Font(None, 40)
-            sub_text = sub_font.render("The Journey Begins", True, (150, 150, 150))
+            sub_text = sub_font.render(sub_title, True, (150, 150, 150))
             sub_rect = sub_text.get_rect(center=(sw // 2, sh // 4 + 60))
             screen.blit(sub_text, sub_rect)
             
@@ -1053,6 +1089,11 @@ def run(screen, settings, start_new_game=False):
                 # Update player
                 player.update(platforms, offset=camera_offset, mouse_pos=mouse_pos_canvas, aim_sensitivity=reticle_sensitivity)
                 
+                # Check Player Death
+                if player.health <= 0:
+                     if game_over_sound: game_over_sound.play()
+                     trigger_death()
+                
                 # --- Movement Audio ---
                 # 1. Jump Sound
                 if player.just_jumped and jump_sound:
@@ -1099,7 +1140,7 @@ def run(screen, settings, start_new_game=False):
                     blackhole_suction_active = False
                     continue  # Skip rest of update this frame
                 
-                # Portal Update and Collision (Tutorial Level only)
+                # Portal Update and Collision
                 if portal and not blackhole_suction_active and not loading_screen_active:
                     portal.update(dt)
                     
@@ -1322,6 +1363,12 @@ def run(screen, settings, start_new_game=False):
                             # In black mode (tension), just take damage/knockback
                             if player.is_white:
                                 tension_duration += 3.0
+                            
+                            # Player takes damage from enemy projectiles
+                            if not proj.is_player_shot:
+                                player.take_damage(10)
+                                if game_over_sound: game_over_sound.play() # Feedback?
+                                
                             player.shake_intensity = 15.0
                             dx = player.x - proj.x
                             if dx == 0: dx = 1
@@ -1360,7 +1407,17 @@ def run(screen, settings, start_new_game=False):
                     for proj in projectiles[:]:
                         if proj.get_rect().colliderect(enemy_rect):
                             if player.is_white and proj.is_player_shot:
-                                 enemy.take_damage("projectile")
+                                 # Standardize damage
+                                 if hasattr(enemy, 'take_damage'):
+                                     # Reduce damage to Boss (if it's the boss)
+                                     dmg = 10
+                                     if isinstance(enemy, ShadowSelf):
+                                         dmg = 4 # Reduced from 10 to make boss tankier
+                                     enemy.take_damage(dmg) 
+                                 else:
+                                     # Fallback for old enemies
+                                     enemy.take_damage("projectile")
+                                     
                                  projectiles.remove(proj)
                                  effects.append(SplatBlast(proj.x, proj.y, proj.color))
                     
@@ -1374,6 +1431,7 @@ def run(screen, settings, start_new_game=False):
                                     if enemy.health <= 0:
                                         print("ENEMY KILLED! Healing Tension.")
                                         enemy.marked_for_deletion = True
+                                        enemy.is_dead = True # Ensure flag is set
                                         tension_duration -= 5.0
                                         tension_duration = max(0.0, tension_duration)
                                     break
