@@ -255,8 +255,8 @@ class MainMenu:
         # Store rect
         self.button_rects.append({'rect': rect, 'action': text, 'index': index})
         
-        # Grey out CONTINUE
-        if text == "CONTINUE":
+        # Grey out CONTINUE if no saved game (TUTORIAL is start)
+        if text == "CONTINUE" and self.settings.get("current_level", "TUTORIAL") == "TUTORIAL":
              s = pygame.Surface(rect.size, pygame.SRCALPHA)
              s.fill((0,0,0, 180))
              self.screen.blit(s, rect.topleft)
@@ -299,7 +299,7 @@ class MainMenu:
         if action == "NEW GAME":
             return "new_game"
         elif action == "CONTINUE":
-            return None 
+            return "continue" 
         elif action == "OPTIONS":
             self.state = "OPTIONS"
             self.selected_index = 0

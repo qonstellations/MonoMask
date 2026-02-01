@@ -105,14 +105,8 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     
     sw = surface.get_width()
     
-    mode_text = 'WHITE (Peace)' if is_white_mode else 'BLACK (Tension)'
-    text = font.render(f"E/SHIFT: Swap | Mode: {mode_text}", True, text_color)
-    text_rect = text.get_rect(topright=(sw - int(10 * scale), int(40 * scale)))
-    surface.blit(text, text_rect)
-    
-    info_text = font.render(f"You are the {mode_text.split()[0]} color", True, text_color)
-    info_rect = info_text.get_rect(topright=(sw - int(10 * scale), int(70 * scale)))
-    surface.blit(info_text, info_rect)
+    # UI hints removed as per user request
+    pass
 
 def draw_distortion(surface, intensity):
     """Draws tension distortion (noise/rects) based on intensity (0.0 to 1.0)"""

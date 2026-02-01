@@ -45,6 +45,12 @@ def main():
                 
                 if action == "new_game":
                     state = "GAME"
+                    # Reset to Tutorial/Level 1
+                    start_new_game = True
+                elif action == "continue":
+                    state = "GAME"
+                    # Load from save
+                    start_new_game = False
                 elif action == "quit":
                     running = False
                 elif action == "toggle_fullscreen":
@@ -86,7 +92,9 @@ def main():
         elif state == "GAME":
             # Run Game Loop (Blocking until return)
             # Pass screen AND settings
-            result = run_game(screen, settings)
+            # Run Game Loop (Blocking until return)
+            # Pass screen AND settings AND start_new_game flag
+            result = run_game(screen, settings, start_new_game=start_new_game)
             
             # Handle Return
             if result == "main_menu":

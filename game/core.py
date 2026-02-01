@@ -10,7 +10,7 @@ from .enemy import MirrorRonin
 
 from .settings_manager import save_settings # Import settings manager
 
-def run(screen, settings):
+def run(screen, settings, start_new_game=False):
     # Initialize Pygame Mixer (Safe to call multiple times or checks init)
     # pygame.init() is handled in main.py
     if not pygame.mixer.get_init():
@@ -376,6 +376,17 @@ def run(screen, settings):
 
     # Level State
     current_level = "TUTORIAL"
+    # DETERMINE STARTING LEVEL
+    if start_new_game:
+        # Reset progress
+        current_level = "TUTORIAL"
+        settings["current_level"] = current_level
+        save_settings(settings)
+    else:
+        # Load progress
+        current_level = settings.get("current_level", "TUTORIAL")
+    
+    # Initialize Game State
     player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(current_level)
     
     # Loading Screen State
@@ -435,7 +446,7 @@ def run(screen, settings):
     # Pause Menu State
     paused = False
     menu_state = "PAUSE" # PAUSE, OPTIONS, CONSOLE
-    pause_menu_options = ["Continue", "Restart", "Options", "Main Menu"]
+    pause_menu_options = ["Continue", "Restart Level", "Options", "Main Menu"]
     options_menu_options = ["Toggle Fullscreen", "Reticle Sensitivity", "Back"]
     pause_selected = 0  # Currently highlighted option
     
@@ -565,7 +576,9 @@ def run(screen, settings):
                                 selected_option = pause_menu_options[pause_selected]
                                 if selected_option == "Continue":
                                     paused = False
-                                elif selected_option == "Restart":
+                                elif selected_option == "Restart Level":
+                                    # Restart the CURRENT level (don't reset to tutorial unless that's current)
+                                    # No change to settings["current_level"] needed
                                     player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(current_level)
                                     tension_duration = 0.0
                                     overload_timer = 0.0
@@ -577,6 +590,11 @@ def run(screen, settings):
                                     transition_active = False
                                     blackhole_suction_active = False
                                     paused = False
+                                    # Stop any lingering sounds
+                                    pygame.mixer.stop()
+                                    # Restart BGM
+                                    if light_bg_sound: bg_chan_light.play(light_bg_sound, loops=-1)
+                                    if dark_bg_sound: bg_chan_dark.play(dark_bg_sound, loops=-1)
                                 elif selected_option == "Options":
                                     menu_state = "OPTIONS"
                                     pause_selected = 0
@@ -1101,6 +1119,10 @@ def run(screen, settings):
                         screen.fill((0, 0, 0))
                         pygame.display.flip()
                         
+                        # Save Progress
+                        settings["current_level"] = next_level
+                        save_settings(settings)
+                        
                         # Reset to new level
                         current_level = next_level
                         player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(next_level)
@@ -1450,31 +1472,7 @@ def run(screen, settings):
                     canvas.blit(label_surf, (key_rect.right + 12, y_pos + 4))
             
             # Tutorial Hint for Mask ON/OFF at platform x=2900
-            if current_level == "TUTORIAL" and 2900 <= player.x <= 3300:
-                key_font = pygame.font.Font(None, 26)
-                label_font = pygame.font.Font(None, 26)
-                
-                # Draw single control hint
-                key = "SHIFT / E"
-                label = "Mask ON/OFF"
-                y_pos = 15
-                
-                # Key box (dark gray rounded rectangle)
-                key_text_surf = key_font.render(key, True, (255, 255, 255))
-                key_width = key_text_surf.get_width() + 16
-                key_height = 26
-                key_rect = pygame.Rect(15, y_pos, key_width, key_height)
-                
-                # Draw rounded key box
-                pygame.draw.rect(canvas, (70, 70, 70), key_rect, border_radius=4)
-                pygame.draw.rect(canvas, (100, 100, 100), key_rect, width=1, border_radius=4)
-                
-                # Key text centered (white)
-                canvas.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
-                
-                # Label text (gray)
-                label_surf = label_font.render(label, True, (150, 150, 150))
-                canvas.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+            # Tutorial Hint for Mask ON/OFF removed
             
             # Tutorial Hint for Fire at white platform (x=9350-9600)
             if current_level == "TUTORIAL" and 9350 <= player.x <= 9600:
