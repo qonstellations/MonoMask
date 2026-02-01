@@ -1092,15 +1092,15 @@ def run(screen, settings):
                     key_rect = pygame.Rect(15, y_pos, key_width, key_height)
                     
                     # Draw rounded key box
-                    pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
-                    pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                    pygame.draw.rect(canvas, (70, 70, 70), key_rect, border_radius=4)
+                    pygame.draw.rect(canvas, (100, 100, 100), key_rect, width=1, border_radius=4)
                     
                     # Key text centered (white)
-                    screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                    canvas.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
                     
                     # Label text (gray)
                     label_surf = label_font.render(label, True, (150, 150, 150))
-                    screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+                    canvas.blit(label_surf, (key_rect.right + 12, y_pos + 4))
             
             # Tutorial Hint for Mask ON/OFF at platform x=2900
             if current_level == "TUTORIAL" and 2900 <= player.x <= 3300:
@@ -1119,15 +1119,15 @@ def run(screen, settings):
                 key_rect = pygame.Rect(15, y_pos, key_width, key_height)
                 
                 # Draw rounded key box
-                pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
-                pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                pygame.draw.rect(canvas, (70, 70, 70), key_rect, border_radius=4)
+                pygame.draw.rect(canvas, (100, 100, 100), key_rect, width=1, border_radius=4)
                 
                 # Key text centered (white)
-                screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                canvas.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
                 
                 # Label text (gray)
                 label_surf = label_font.render(label, True, (150, 150, 150))
-                screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+                canvas.blit(label_surf, (key_rect.right + 12, y_pos + 4))
             
             # Tutorial Hint for Fire at white platform (x=9350-9600)
             if current_level == "TUTORIAL" and 9350 <= player.x <= 9600:
@@ -1146,15 +1146,15 @@ def run(screen, settings):
                 key_rect = pygame.Rect(15, y_pos, key_width, key_height)
                 
                 # Draw rounded key box
-                pygame.draw.rect(screen, (70, 70, 70), key_rect, border_radius=4)
-                pygame.draw.rect(screen, (100, 100, 100), key_rect, width=1, border_radius=4)
+                pygame.draw.rect(canvas, (70, 70, 70), key_rect, border_radius=4)
+                pygame.draw.rect(canvas, (100, 100, 100), key_rect, width=1, border_radius=4)
                 
                 # Key text centered (white)
-                screen.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
+                canvas.blit(key_text_surf, (key_rect.x + 8, key_rect.y + 4))
                 
                 # Label text (gray)
                 label_surf = label_font.render(label, True, (150, 150, 150))
-                screen.blit(label_surf, (key_rect.right + 12, y_pos + 4))
+                canvas.blit(label_surf, (key_rect.right + 12, y_pos + 4))
                  
             # --- PAUSE MENU OVERLAY ---
             if paused:

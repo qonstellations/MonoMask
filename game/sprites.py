@@ -1004,7 +1004,7 @@ class Portal:
     def check_collision(self, player_rect):
         return self.active and self.get_rect().colliderect(player_rect)
     
-    def draw(self, screen, is_white_mode, camera=None, offset=(0,0)):
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
         ox, oy = offset
         cx = self.x - ox
         cy = self.y - oy
