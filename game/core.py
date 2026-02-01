@@ -8,7 +8,7 @@ from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave,
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin, ShadowSelf
-from .settings_manager import save_settings # Import settings manager
+from .settings_manager import save_settings, resource_path  # Import settings manager
 
 
 def draw_mask_circle(surface, center_x, center_y, scale, color):
@@ -115,8 +115,8 @@ def run(screen, settings, start_new_game=False):
     
     # Audio Paths & Objects
     try:
-        light_bg_sound = pygame.mixer.Sound("assets/light_audio_bg.wav")
-        dark_bg_sound = pygame.mixer.Sound("assets/dark_audio_bg.wav")
+        light_bg_sound = pygame.mixer.Sound(resource_path("assets/light_audio_bg.wav"))
+        dark_bg_sound = pygame.mixer.Sound(resource_path("assets/dark_audio_bg.wav"))
     except Exception as e:
         print(f"Warning: Could not load BGM: {e}")
         light_bg_sound = None
@@ -148,7 +148,7 @@ def run(screen, settings, start_new_game=False):
     TARGET_VOL_DEATH_FACTOR = 0.4 / 0.7 # Scaling factor for death volume (approx 0.57)
     
     try:
-        shadow_sound = pygame.mixer.Sound("assets/shadow.mp3")
+        shadow_sound = pygame.mixer.Sound(resource_path("assets/shadow.mp3"))
         shadow_sound.set_volume(1.0)  # Max volume for thrill
     except:
         print("Warning: Could not load shadow sound effect")
@@ -156,7 +156,7 @@ def run(screen, settings, start_new_game=False):
         
     # Load Heartbeat Sound
     try:
-        heartbeat_sound = pygame.mixer.Sound("assets/heartbeat.mp3")
+        heartbeat_sound = pygame.mixer.Sound(resource_path("assets/heartbeat.mp3"))
         heartbeat_sound.set_volume(0.9)
     except:
         print("Warning: Could not load heartbeat sound")
@@ -164,7 +164,7 @@ def run(screen, settings, start_new_game=False):
         
     # Load Game Over Sound
     try:
-        game_over_sound = pygame.mixer.Sound("assets/game_over.wav")
+        game_over_sound = pygame.mixer.Sound(resource_path("assets/game_over.wav"))
         game_over_sound.set_volume(0.8)
     except:
         print("Warning: Could not load game_over.wav")
@@ -176,19 +176,19 @@ def run(screen, settings, start_new_game=False):
     
     # Load Movement SFX
     try:
-        light_step_sound = pygame.mixer.Sound("assets/light_step.wav")
+        light_step_sound = pygame.mixer.Sound(resource_path("assets/light_step.wav"))
         light_step_sound.set_volume(0.5) # 50% intensity
         
-        dark_step_sound = pygame.mixer.Sound("assets/dark_step.wav")
+        dark_step_sound = pygame.mixer.Sound(resource_path("assets/dark_step.wav"))
         dark_step_sound.set_volume(0.2) # 20% intensity
         
-        jump_sound = pygame.mixer.Sound("assets/jump.mp3")
+        jump_sound = pygame.mixer.Sound(resource_path("assets/jump.mp3"))
         jump_sound.set_volume(2.0)
         
-        splat_sound = pygame.mixer.Sound("assets/splat.wav")
+        splat_sound = pygame.mixer.Sound(resource_path("assets/splat.wav"))
         splat_sound.set_volume(0.6)
         
-        waves_sound = pygame.mixer.Sound("assets/waves.mp3")
+        waves_sound = pygame.mixer.Sound(resource_path("assets/waves.mp3"))
         waves_sound.set_volume(0.6)
     except Exception as e:
         print(f"Warning: Could not load Movement/Attack SFX: {e}")

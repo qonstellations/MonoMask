@@ -1,6 +1,7 @@
 import pygame
 import os
 from .settings import *
+from .settings_manager import resource_path
 
 class ParallaxBackground:
     def __init__(self):
@@ -20,11 +21,6 @@ class ParallaxBackground:
         
         # Helper to load (but NOT scale yet - we'll scale on first draw)
         def load_asset(filename):
-            # Resolve path relative to this file (__file__ is inside game/)
-            # Go up one level to get to project root
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ARTIFACT_DIR = os.path.join(base_dir, "assets")
-            
             # Use high-quality generated assets
             name_map = {
                 # Map far/mid/near to the generated smooth textures
@@ -34,10 +30,10 @@ class ParallaxBackground:
             }
             
             real_name = name_map.get(filename, filename)
-            path = os.path.join(ARTIFACT_DIR, real_name)
+            path = resource_path(os.path.join("assets", real_name))
             
             if not os.path.exists(path):
-                print(f"Warning: Asset {real_name} not found")
+                print(f"Warning: Asset {real_name} not found at {path}")
                 return None
                 
             try:
