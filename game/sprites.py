@@ -38,9 +38,6 @@ class Player:
         # Audio Flags
         self.just_jumped = False
         
-        # Audio Flags
-        self.just_jumped = False
-        
     def get_rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
     
@@ -212,7 +209,6 @@ class Player:
                      if ground_check_rect.colliderect(platform.get_rect()):
                          self.on_ground = True
                          break
-                        self.current_platform = None # Bumped head, not standing
         
         # Move boundaries check REMOVED for camera
         # if self.x < 0: self.x = 0

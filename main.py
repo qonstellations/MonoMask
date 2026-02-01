@@ -1,5 +1,6 @@
 import pygame
 import sys
+import traceback
 from game.settings import SCREEN_WIDTH, SCREEN_HEIGHT
 from game import run as run_game
 from game.menu import MainMenu
@@ -107,7 +108,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        run()
+        main()
     except Exception:
         # Log to file
         with open("crash_log_global.txt", "w") as f:

@@ -38,7 +38,7 @@ class Camera:
         self.camera = pygame.Rect(x, y, self.width, self.height)
 
 # Helper function to draw the game state
-def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0), portal=None, scale=1.0):
+def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effects=None, background=None, spikes=None, camera=None, enemies=None, offset=(0,0), portal=None, scale=1.0, doors=None):
     # Background (Inverted: White Mode = White BG)
     bg_color = CREAM if is_white_mode else BLACK_MATTE
     surface.fill(bg_color)
@@ -59,12 +59,7 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
         # Best to pass camera to platform.draw or calculate offset points.
         # Let's update Platform.draw to accept camera, or offset the context?
         # Easier: Pass camera to draw()
-        platform.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
-
-    # Draw doors
-    if doors:
-        for door in doors:
-            door.draw(surface, is_white_mode, camera=camera, offset=offset)
+        platform.draw(surface, is_white_mode, camera=camera, offset=offset)
 
     # Draw doors
     if doors:
@@ -74,16 +69,16 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     # Draw enemies
     if enemies:
         for enemy in enemies:
-            enemy.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
+            enemy.draw(surface, is_white_mode, camera=camera, offset=offset)
      
     # Draw portal (blackhole)
     if portal:
-        portal.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
+        portal.draw(surface, is_white_mode, camera=camera, offset=offset)
 
     # Draw spikes
     if spikes:
         for spike in spikes:
-            spike.draw(surface, is_white_mode, camera=camera, offset=offset, scale=scale)
+            spike.draw(surface, is_white_mode, camera=camera, offset=offset)
             
     # Draw projectiles
     if projectiles:
@@ -91,15 +86,15 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
             # Projectile draw is simple polygon/blob.
             # We can just hacking pass offset?
             # Or add draw(camera)
-            proj.draw(surface, camera=camera, offset=offset, scale=scale)
+            proj.draw(surface, camera=camera, offset=offset)
             
     # Draw effects
     if effects:
         for eff in effects:
-            eff.draw(surface, camera=camera, offset=offset, scale=scale)
+            eff.draw(surface, camera=camera, offset=offset)
     
     # Draw player
-    player.draw(surface, camera=camera, offset=offset, scale=scale)
+    player.draw(surface, camera=camera, offset=offset)
 
     
     # Draw UI (Fixed on screen, NO OFFSET) - Top Right

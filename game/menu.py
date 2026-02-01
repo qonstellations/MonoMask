@@ -93,8 +93,8 @@ class MainMenu:
                 color = (brightness, brightness, brightness)
                 pygame.draw.circle(self.screen, color, (x, y), size)
     
-    def draw_blur_panel(self, rect, alpha=180):
-        """Draw a dark semi-transparent panel with soft edges"""
+    def draw_rounded_panel(self, rect, alpha=180):
+        """Draw a dark semi-transparent panel with soft edges (Rounded)"""
         # Create panel surface
         panel = pygame.Surface((rect.width + 40, rect.height + 40), pygame.SRCALPHA)
         
@@ -112,14 +112,20 @@ class MainMenu:
         
         # Blit panel centered on the rect
         self.screen.blit(panel, (rect.x - 20, rect.y - 20))
+
+    def draw_bottom_tint(self, start_y, alpha=230):
+        """Draw a full-width dark tint from start_y to bottom of screen"""
+        tint_surface = pygame.Surface((self.width, self.height - start_y), pygame.SRCALPHA)
+        tint_surface.fill((0, 0, 0, alpha))
+        self.screen.blit(tint_surface, (0, start_y))
         
     def draw(self):
         self.screen.fill((0, 0, 0)) # Pure Black Background
         
         # Draw dotted background first
-        self.draw_dotted_background()
         
         if self.state == "MAIN":
+            self.draw_dotted_background()
             self.draw_list(self.options_main, "MONOMASK")
         elif self.state == "OPTIONS":
             self.draw_options_menu()
@@ -138,8 +144,8 @@ class MainMenu:
                                    400, buttons_height + 20)
         
         # Draw blur panels behind UI elements
-        self.draw_blur_panel(title_rect.inflate(60, 30))
-        self.draw_blur_panel(buttons_rect)
+        self.draw_rounded_panel(title_rect.inflate(60, 30))
+        self.draw_rounded_panel(buttons_rect)
         
         # Draw Title
         self.screen.blit(title_surf, title_rect)
@@ -160,12 +166,13 @@ class MainMenu:
         
         # Calculate options area rect (wider for sliders)
         options_height = len(self.options_sub) * gap
-        options_rect = pygame.Rect(self.width // 2 - 350, start_y - 30, 
-                                   700, options_height + 20)
+        options_rect = pygame.Rect(self.width // 2 - 450, start_y - 30, 
+                                   900, options_height + 20)
         
         # Draw blur panels
-        self.draw_blur_panel(title_rect.inflate(60, 30))
-        self.draw_blur_panel(options_rect)
+        self.draw_rounded_panel(title_rect.inflate(60, 30))
+        # Use full bottom tint for options instead of rounded panel
+        self.draw_bottom_tint(options_rect.top)
         
         # Draw Title
         self.screen.blit(title_surf, title_rect)
@@ -186,7 +193,7 @@ class MainMenu:
                 # Toggle Switch UI
                 switch_w = 60
                 switch_h = 30
-                switch_x = self.width // 2 + 280
+                switch_x = self.width // 2 + 350
                 switch_y = y_pos - switch_h // 2
                 
                 switch_rect = pygame.Rect(switch_x, switch_y, switch_w, switch_h)
@@ -207,7 +214,7 @@ class MainMenu:
             elif option == "RETICLE SENSITIVITY":
                 # Draw Slider Bar
                 slider_width = 200
-                slider_x = self.width // 2 + 280
+                slider_x = self.width // 2 + 350
                 slider_y = y_pos
                 
                 # Background Line
