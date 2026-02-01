@@ -608,6 +608,39 @@ def run(screen, settings, start_new_game=False):
     old_screen_capture = pygame.Surface((render_w, render_h))
     next_state_capture = pygame.Surface((render_w, render_h))
 
+    # --- START NEW GAME TRANSITION (Chapter 0) ---
+    if start_new_game and current_level == "TUTORIAL":
+         # Show Chapter 0 Title immediately
+         font_chap = pygame.font.Font(None, 60)
+         text_surf = font_chap.render("Chapter 0: The Awakening", True, (255, 255, 255))
+         text_rect = text_surf.get_rect(center=(screen_w//2, screen_h//2))
+         
+         # --- FADE IN ---
+         for alpha in range(0, 256, 4):
+            screen.fill((0, 0, 0))
+            text_surf.set_alpha(alpha)
+            screen.blit(text_surf, text_rect)
+            pygame.display.flip()
+            clock.tick(60)
+            pygame.event.pump()
+            
+         # --- HOLD (2s) ---
+         for _ in range(120):
+            screen.fill((0, 0, 0))
+            screen.blit(text_surf, text_rect)
+            pygame.display.flip()
+            clock.tick(60)
+            pygame.event.pump()
+            
+         # --- FADE OUT ---
+         for alpha in range(255, -1, -4):
+            screen.fill((0, 0, 0))
+            text_surf.set_alpha(alpha)
+            screen.blit(text_surf, text_rect)
+            pygame.display.flip()
+            clock.tick(60)
+            pygame.event.pump()
+
     while running:
         dt = clock.tick(FPS) / 1000.0
         
@@ -641,7 +674,7 @@ def run(screen, settings, start_new_game=False):
             pygame.display.flip()
             continue
 
-        # --- GAME OVER LOGIC (MIND FRACTURED) ---
+        # --- GAME OVER LOGIC (SANITY LOST) ---
         if game_over:
             # Initialize Crumble Effect if needed
             if crumble_effect is None:
@@ -1295,9 +1328,54 @@ def run(screen, settings, start_new_game=False):
                                     pygame.quit()
                                     sys.exit()
                         
-                        # Full black screen
+                        # Full black screen with Chapter Title
                         screen.fill((0, 0, 0))
-                        pygame.display.flip()
+                        
+                        # Define Chapter Map
+                        chapter_map = {
+                            "TUTORIAL": "Chapter 0: The Awakening",
+                            "LEVEL_1": "Chapter 1: Deeper Into The Dreams",
+                            "LEVEL_2": "Chapter 2: The Road Not Taken",
+                            "LEVEL_3": "Chapter 3: The Inner Sanctum",
+                            "LEVEL_4": ""
+                        }
+                        
+                        chap_title = chapter_map.get(next_level)
+                        
+                        if chap_title:
+                            font_chap = pygame.font.Font(None, 60)
+                            text_surf = font_chap.render(chap_title, True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(center=(sw//2, sh//2))
+                            
+                            # --- FADE IN ---
+                            for alpha in range(0, 256, 4):
+                                screen.fill((0, 0, 0))
+                                text_surf.set_alpha(alpha)
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                                
+                            # --- HOLD (2s) ---
+                            for _ in range(120):
+                                screen.fill((0, 0, 0))
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                                
+                            # --- FADE OUT ---
+                            for alpha in range(255, -1, -4):
+                                screen.fill((0, 0, 0))
+                                text_surf.set_alpha(alpha)
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                        else:
+                            # Just hold black for a moment if no title
+                            pygame.display.flip()
+                            pygame.time.delay(500)
                         
                         # Save Progress
                         settings["current_level"] = next_level
@@ -1376,9 +1454,54 @@ def run(screen, settings, start_new_game=False):
                                     pygame.quit()
                                     sys.exit()
                         
-                        # Full black screen for a moment
+                        # Full black screen with Chapter Title
                         screen.fill((0, 0, 0))
-                        pygame.display.flip()
+                        
+                        # Define Chapter Map
+                        chapter_map = {
+                            "TUTORIAL": "Chapter 0: The Awakening",
+                            "LEVEL_1": "Chapter 1: Deeper Into The Dreams",
+                            "LEVEL_2": "Chapter 2: The Road Not Taken",
+                            "LEVEL_3": "Chapter 3: The Inner Sanctum",
+                            "LEVEL_4": ""
+                        }
+                        
+                        chap_title = chapter_map.get(next_level)
+                        
+                        if chap_title:
+                            font_chap = pygame.font.Font(None, 60)
+                            text_surf = font_chap.render(chap_title, True, (255, 255, 255))
+                            text_rect = text_surf.get_rect(center=(sw//2, sh//2))
+                            
+                            # --- FADE IN ---
+                            for alpha in range(0, 256, 4):
+                                screen.fill((0, 0, 0))
+                                text_surf.set_alpha(alpha)
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                                
+                            # --- HOLD (2s) ---
+                            for _ in range(120):
+                                screen.fill((0, 0, 0))
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                                
+                            # --- FADE OUT ---
+                            for alpha in range(255, -1, -4):
+                                screen.fill((0, 0, 0))
+                                text_surf.set_alpha(alpha)
+                                screen.blit(text_surf, text_rect)
+                                pygame.display.flip()
+                                clock.tick(60)
+                                pygame.event.pump()
+                        else:
+                            # Just hold black for a moment if no title
+                            pygame.display.flip()
+                            pygame.time.delay(500)
                         
                         # Reset to new level
                         try:

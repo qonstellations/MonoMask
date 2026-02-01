@@ -253,7 +253,7 @@ class CrumbleEffect:
         # Draw Text on top
         width, height = surface.get_size()
         font = pygame.font.Font(None, 100)
-        text = font.render("MIND FRACTURED", True, (80, 80, 80))
+        text = font.render("SANITY LOST", True, (80, 80, 80))
         text_rect = text.get_rect(center=(width//2, height//2))
         surface.blit(text, text_rect)
         
