@@ -37,54 +37,87 @@ class MainMenu:
         # Input Debounce (prevents super fast slider movement)
         self.input_timer = 0
         
-        # Cloud Ripple Animation
+        # Animated Dotted Background
         self.anim_time = 0.0
-        self.cloud_ripples = []
-        # Pre-generate ripple spawn points
-        for _ in range(8):
-            self.cloud_ripples.append({
-                'x': random.randint(0, SCREEN_WIDTH),
-                'y': random.randint(0, SCREEN_HEIGHT),
-                'phase': random.uniform(0, math.pi * 2),
-                'speed': random.uniform(0.5, 1.5),
-                'size': random.randint(100, 300)
-            })
+        self.dot_grid = []
+        self.dot_spacing = 8  # Pixels between dots
+        self.scroll_x = 0.0
+        self.scroll_y = 0.0
+        
+        # Pre-generate dot grid with noise values
+        cols = SCREEN_WIDTH // self.dot_spacing + 4
+        rows = SCREEN_HEIGHT // self.dot_spacing + 4
+        for y in range(rows):
+            row = []
+            for x in range(cols):
+                # Create pseudo-random noise pattern
+                noise = self._noise(x * 0.15, y * 0.15)
+                row.append({
+                    'base_size': 1 + noise * 3,  # Size 1-4
+                    'phase': random.uniform(0, math.pi * 2),
+                    'brightness': 80 + int(noise * 175)  # 80-255
+                })
+            self.dot_grid.append(row)
+        
+    def _noise(self, x, y):
+        """Simple noise function for procedural generation"""
+        # Combination of sin waves for organic look
+        n = math.sin(x * 1.5) * math.cos(y * 1.3) * 0.5
+        n += math.sin(x * 0.7 + y * 0.5) * 0.3
+        n += math.sin(x * 2.1 - y * 1.8) * 0.2
+        return (n + 1) / 2  # Normalize to 0-1
         
     def update(self, dt=1/60):
         """Update animation timers"""
         self.anim_time += dt
+        # No scrolling - dots stay in place
         
-    def draw_cloud_ripples(self):
-        """Draw animated white cloud ripples in the background"""
-        for ripple in self.cloud_ripples:
-            # Calculate pulsing size
-            pulse = math.sin(self.anim_time * ripple['speed'] + ripple['phase'])
-            current_size = ripple['size'] + pulse * 50
-            
-            # Calculate alpha (fading in and out)
-            alpha = int(15 + 10 * math.sin(self.anim_time * 0.5 + ripple['phase']))
-            
-            # Create a surface for the soft glow
-            glow_size = int(current_size * 2)
-            if glow_size > 0:
-                glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
+    def draw_dotted_background(self):
+        """Draw animated dotted halftone background"""
+        for row_idx, row in enumerate(self.dot_grid):
+            for col_idx, dot in enumerate(row):
+                # Calculate fixed screen position (no scroll offset)
+                x = col_idx * self.dot_spacing
+                y = row_idx * self.dot_spacing
                 
-                # Draw multiple concentric circles for soft glow effect
-                center = glow_size // 2
-                for i in range(3):
-                    radius = int(current_size * (1.0 - i * 0.3))
-                    circle_alpha = alpha // (i + 1)
-                    if radius > 0 and circle_alpha > 0:
-                        pygame.draw.circle(glow_surf, (255, 255, 255, circle_alpha), (center, center), radius)
+                # Skip if off screen
+                if x < -10 or x > self.width + 10 or y < -10 or y > self.height + 10:
+                    continue
                 
-                # Blit with offset
-                self.screen.blit(glow_surf, (int(ripple['x'] - center), int(ripple['y'] - center)))
+                # Animate size with time (pulsing in place)
+                pulse = math.sin(self.anim_time * 0.8 + dot['phase']) * 0.3 + 0.7
+                size = max(1, int(dot['base_size'] * pulse))
+                
+                # Draw dot
+                brightness = dot['brightness']
+                color = (brightness, brightness, brightness)
+                pygame.draw.circle(self.screen, color, (x, y), size)
+    
+    def draw_blur_panel(self, rect, alpha=180):
+        """Draw a dark semi-transparent panel with soft edges"""
+        # Create panel surface
+        panel = pygame.Surface((rect.width + 40, rect.height + 40), pygame.SRCALPHA)
+        
+        # Draw multiple rectangles for soft edge effect
+        for i in range(5):
+            expand = (5 - i) * 8
+            panel_alpha = alpha // (6 - i)
+            inner_rect = pygame.Rect(20 - expand//2, 20 - expand//2, 
+                                     rect.width + expand, rect.height + expand)
+            pygame.draw.rect(panel, (0, 0, 0, panel_alpha), inner_rect, border_radius=15)
+        
+        # Core solid panel
+        core_rect = pygame.Rect(20, 20, rect.width, rect.height)
+        pygame.draw.rect(panel, (0, 0, 0, alpha), core_rect, border_radius=10)
+        
+        # Blit panel centered on the rect
+        self.screen.blit(panel, (rect.x - 20, rect.y - 20))
         
     def draw(self):
         self.screen.fill((0, 0, 0)) # Pure Black Background
         
-        # Draw cloud ripples first (behind everything)
-        self.draw_cloud_ripples()
+        # Draw dotted background first
+        self.draw_dotted_background()
         
         if self.state == "MAIN":
             self.draw_list(self.options_main, "MONOMASK")
@@ -92,13 +125,24 @@ class MainMenu:
             self.draw_options_menu()
 
     def draw_list(self, options, title):
-        # Draw Title
+        # Calculate positions first
         title_surf = self.title_font.render(title, True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(self.width // 2, self.height // 3))
-        self.screen.blit(title_surf, title_rect)
         
         start_y = self.height // 2 + 50
         gap = 70
+        
+        # Calculate buttons area rect
+        buttons_height = len(options) * gap
+        buttons_rect = pygame.Rect(self.width // 2 - 200, start_y - 30, 
+                                   400, buttons_height + 20)
+        
+        # Draw blur panels behind UI elements
+        self.draw_blur_panel(title_rect.inflate(60, 30))
+        self.draw_blur_panel(buttons_rect)
+        
+        # Draw Title
+        self.screen.blit(title_surf, title_rect)
         
         self.button_rects = [] 
         
@@ -107,13 +151,24 @@ class MainMenu:
             self.draw_button(option, start_y + i * gap, is_selected, i)
 
     def draw_options_menu(self):
-        # Draw Title
+        # Calculate positions first
         title_surf = self.title_font.render("OPTIONS", True, (255, 255, 255))
         title_rect = title_surf.get_rect(center=(self.width // 2, self.height // 3))
-        self.screen.blit(title_surf, title_rect)
         
         start_y = self.height // 2 + 50
         gap = 80 # Larger gap for UI elements
+        
+        # Calculate options area rect (wider for sliders)
+        options_height = len(self.options_sub) * gap
+        options_rect = pygame.Rect(self.width // 2 - 350, start_y - 30, 
+                                   700, options_height + 20)
+        
+        # Draw blur panels
+        self.draw_blur_panel(title_rect.inflate(60, 30))
+        self.draw_blur_panel(options_rect)
+        
+        # Draw Title
+        self.screen.blit(title_surf, title_rect)
         
         self.button_rects = []
         
