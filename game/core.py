@@ -1030,19 +1030,31 @@ def run(screen, settings):
                     portal.update(dt)
                     
                     # Check collision
-                    if portal.check_collision(player.get_rect()):
-                        # Start blackhole suction animation
-                        blackhole_suction_active = True
-                        blackhole_suction_timer = 0.0
-                        blackhole_player_scale = 1.0
-                        blackhole_player_rotation = 0.0
-                        # Set next level based on current level
-                        if current_level == "TUTORIAL":
-                            next_level = "LEVEL_1"
-                        elif current_level == "LEVEL_1":
-                            next_level = "LEVEL_2"
-                        else:
-                            next_level = "LEVEL_1"  # Fallback
+                    # Check collision (Only if all enemies defeated)
+                    if len(enemies) == 0:
+                        if portal.check_collision(player.get_rect()):
+                            # Start blackhole suction animation
+                            blackhole_suction_active = True
+                            blackhole_suction_timer = 0.0
+                            blackhole_player_scale = 1.0
+                            blackhole_player_rotation = 0.0
+                            # Set next level based on current level
+                            if current_level == "TUTORIAL":
+                                next_level = "LEVEL_1"
+                            elif current_level == "LEVEL_1":
+                                next_level = "LEVEL_2"
+                            else:
+                                next_level = "LEVEL_1"  # Fallback
+                    else:
+                        # Draw LOCKED text
+                        locked_font = pygame.font.Font(None, 40)
+                        locked_surf = locked_font.render("LOCKED", True, (255, 50, 50))
+                        # Center above portal (portal is roughly 80x80 usually?)
+                        # Use portal.rect if available, else usage of x,y
+                        # Assuming BlackHole has .rect or we can use portal.x/y
+                        # Let's use logic similar to how we might draw it
+                        # If we don't know exact size, x,y is topleft usually
+                        canvas.blit(locked_surf, (portal.x - 10, portal.y - 40))
                 
                 # Blackhole Suction Animation Logic
                 if blackhole_suction_active:

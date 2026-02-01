@@ -87,26 +87,39 @@ class MirrorRonin:
             self.vel_x = 0
             self.facing = -1  # Face left (toward spawn/player start)
             
-        # Edge Detection (Don't fall off platforms)
+        # Edge Detection (Robust - Don't fall off platforms)
         if self.on_ground and self.vel_x != 0:
-            # Look ahead
-            look_ahead = 20 # Look a bit ahead of the center
-            if self.vel_x < 0:
-                check_x = self.x + self.vel_x
-            else:
-                check_x = self.x + self.width + self.vel_x
-                
-            # Check point below
-            check_point = (check_x, self.y + self.height + 2)
+            look_ahead = 25
             
-            ground_found = False
+            # Find current platform
+            current_platform = None
+            feet_y = self.y + self.height
+            center_x = self.x + self.width / 2
+            
             for platform in platforms:
-                if platform.get_rect().collidepoint(check_point):
-                    ground_found = True
-                    break
+                p_rect = platform.get_rect()
+                # Check vertical alignment (with small tolerance)
+                if abs(p_rect.top - feet_y) < 5:
+                    # Check if we are horizontally within this platform (allowing to be on edge)
+                    # Use a slightly wider check for "on platform" to catch if we are just starting to move off
+                    if p_rect.left - 10 <= center_x <= p_rect.right + 10:
+                        current_platform = platform
+                        break
             
-            if not ground_found:
-                self.vel_x = 0
+            if current_platform:
+                p_rect = current_platform.get_rect()
+                
+                if self.vel_x < 0: # Moving Left
+                    next_left = self.x + self.vel_x - look_ahead
+                    if next_left < p_rect.left:
+                        self.vel_x = 0
+                        self.x = p_rect.left + look_ahead # Clamp to safe spot
+                
+                elif self.vel_x > 0: # Moving Right
+                    next_right = self.x + self.width + self.vel_x + look_ahead
+                    if next_right > p_rect.right:
+                        self.vel_x = 0
+                        self.x = p_rect.right - self.width - look_ahead # Clamp to safe spot
         
         # Boundary Enforcement (if set)
         if hasattr(self, 'boundary_x_min') and self.x + self.vel_x < self.boundary_x_min:
