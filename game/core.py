@@ -651,24 +651,28 @@ def run(screen, settings, start_new_game=False):
                     running = False
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN or event.key == pygame.K_SPACE or event.key == pygame.K_ESCAPE:
-                        return "Main Menu"
+                        return "main_menu"
             
             screen.fill((0, 0, 0))
             
             # Simple fade in or static text
+            # Get current screen dimensions for proper centering (vs Fullscreen)
+            sw, sh = screen.get_size()
+            
+            # Simple fade in or static text
             font_title = pygame.font.Font(None, 100)
             title_surf = font_title.render("MONOMASK", True, (240, 240, 230))
-            title_rect = title_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 50))
+            title_rect = title_surf.get_rect(center=(sw//2, sh//2 - 50))
             screen.blit(title_surf, title_rect)
             
             font_sub = pygame.font.Font(None, 50)
             sub_surf = font_sub.render("Thank You For Playing", True, (150, 150, 150))
-            sub_rect = sub_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 50))
+            sub_rect = sub_surf.get_rect(center=(sw//2, sh//2 + 50))
             screen.blit(sub_surf, sub_rect)
             
             font_hint = pygame.font.Font(None, 30)
             hint_surf = font_hint.render("Press ENTER to Return", True, (100, 100, 100))
-            hint_rect = hint_surf.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT - 50))
+            hint_rect = hint_surf.get_rect(center=(sw//2, sh - 50))
             screen.blit(hint_surf, hint_rect)
             
             pygame.display.flip()
