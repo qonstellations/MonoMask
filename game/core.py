@@ -96,7 +96,7 @@ def run(screen, settings):
         light_step_sound.set_volume(0.5) # 50% intensity
         
         dark_step_sound = pygame.mixer.Sound("assets/dark_step.wav")
-        dark_step_sound.set_volume(0.5) # 50% intensity
+        dark_step_sound.set_volume(0.2) # 20% intensity
         
         jump_sound = pygame.mixer.Sound("assets/jump.mp3")
         jump_sound.set_volume(2.0)
