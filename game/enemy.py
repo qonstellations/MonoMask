@@ -204,3 +204,431 @@ class MirrorRonin:
             # Draw Red Eyes
             eye_x = cx + (10 * self.facing)
             pygame.draw.circle(screen, (255, 50, 50), (int(eye_x), int(cy - 10)), 3)
+
+
+class ShadowSelf:
+    """The Inner Demon - A massive corrupted reflection of the protagonist.
+    4x larger with cracked hat, glaring red eyes, tattered robes, and burning flames."""
+    
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.spawn_x = x
+        self.width = 200   # 4x protagonist (50 * 4)
+        self.height = 200
+        self.vel_x = 0
+        self.vel_y = 0
+        self.speed_white = 1.0  # Slower but menacing
+        self.speed_black = 2.5  # Chase speed
+        self.gravity = 0.8
+        self.on_ground = False
+        
+        # Combat State
+        self.health = 25  # Much tougher than regular enemies
+        self.marked_for_deletion = False
+        self.attack_timer = 0
+        self.facing = 1
+        self.activated = False
+        self.melee_damage_cooldown = 0
+        
+        # Visual State
+        self.anim_timer = 0.0
+        self.rage_intensity = 1.0  # Always in rage mode
+        
+        # Flame particles
+        self.flame_particles = []
+        for _ in range(30):
+            self.flame_particles.append({
+                'x': random.uniform(-self.width/2, self.width/2),
+                'y': random.uniform(-self.height*0.3, self.height*0.5),
+                'vx': random.uniform(-1, 1),
+                'vy': random.uniform(-3, -1),
+                'life': random.uniform(0.5, 1.0),
+                'size': random.uniform(8, 20)
+            })
+        
+        # Ink drip particles
+        self.ink_drips = []
+        for _ in range(15):
+            self.ink_drips.append({
+                'x': random.uniform(-self.width/2, self.width/2),
+                'y': self.height * 0.4,
+                'vy': random.uniform(1, 3),
+                'life': random.uniform(0.5, 1.0),
+                'size': random.uniform(3, 8)
+            })
+        
+        self.pending_projectiles = []
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def take_damage(self, source_type):
+        if source_type == "projectile":
+            self.health -= 1
+        elif source_type == "melee":
+            if self.melee_damage_cooldown > 0:
+                return
+            self.health -= 2.5
+            self.melee_damage_cooldown = 30
+            
+        if self.health <= 0:
+            self.marked_for_deletion = True
+
+    def update(self, player, platforms, offset=(0,0)):
+        self.anim_timer += 0.1
+        
+        # Decrement damage cooldown
+        if self.melee_damage_cooldown > 0:
+            self.melee_damage_cooldown -= 1
+        self.on_ground = False
+        
+        # Update flame particles
+        for p in self.flame_particles:
+            p['y'] += p['vy']
+            p['x'] += p['vx'] + math.sin(self.anim_timer * 0.5 + p['x']) * 0.5
+            p['life'] -= 0.02
+            if p['life'] <= 0:
+                # Reset particle
+                p['x'] = random.uniform(-self.width/2, self.width/2)
+                p['y'] = random.uniform(-self.height*0.2, self.height*0.5)
+                p['vx'] = random.uniform(-1, 1)
+                p['vy'] = random.uniform(-3, -1)
+                p['life'] = random.uniform(0.5, 1.0)
+                p['size'] = random.uniform(8, 20)
+        
+        # Update ink drips
+        for d in self.ink_drips:
+            d['y'] += d['vy']
+            d['life'] -= 0.01
+            if d['life'] <= 0 or d['y'] > self.height * 0.8:
+                d['x'] = random.uniform(-self.width/2, self.width/2)
+                d['y'] = self.height * 0.3
+                d['vy'] = random.uniform(1, 3)
+                d['life'] = random.uniform(0.5, 1.0)
+                d['size'] = random.uniform(3, 8)
+        
+        # Basic Physics (Gravity)
+        self.vel_y += self.gravity
+        self.y += self.vel_y
+        
+        # Platform Collision (Vertical)
+        my_rect = self.get_rect()
+        for platform in platforms:
+            if platform.get_rect().colliderect(my_rect):
+                if self.vel_y > 0:
+                    self.y = platform.get_rect().top - self.height
+                    self.vel_y = 0
+                    self.on_ground = True
+        
+        # AI Logic - Only activate when player gets close enough
+        dist_to_player = abs(self.x - player.x)
+        if not self.activated and dist_to_player < 800:
+            self.activated = True
+        
+        if self.activated:
+            if player.is_white:
+                self.behavior_white(player)
+            else:
+                self.behavior_black(player)
+        else:
+            self.vel_x = 0
+            self.facing = -1
+            
+        # Edge Detection
+        if self.on_ground and self.vel_x != 0:
+            if self.vel_x < 0:
+                check_x = self.x + self.vel_x
+            else:
+                check_x = self.x + self.width + self.vel_x
+                
+            check_point = (check_x, self.y + self.height + 2)
+            
+            ground_found = False
+            for platform in platforms:
+                if platform.get_rect().collidepoint(check_point):
+                    ground_found = True
+                    break
+            
+            if not ground_found:
+                self.vel_x = 0
+            
+        self.x += self.vel_x
+
+    def behavior_white(self, player):
+        # Slow menacing approach + ranged attacks
+        dist_x = self.x - player.x
+        
+        if abs(dist_x) > 300:
+            if dist_x > 0:
+                self.vel_x = -self.speed_white
+            else:
+                self.vel_x = self.speed_white
+        else:
+            self.vel_x = 0
+            
+        self.facing = -1 if dist_x > 0 else 1
+        
+        # Attack Logic - faster than regular enemy
+        self.attack_timer += 1
+        if self.attack_timer > 90:  # 1.5 seconds
+            self.attack_timer = 0
+            cx, cy = self.x + self.width/2, self.y + self.height/2
+            px, py = player.x + player.width/2, player.y + player.height/2
+            angle = math.atan2(py - cy, px - cx)
+            
+            # Fire 3 projectiles in a spread
+            for spread in [-0.2, 0, 0.2]:
+                a = angle + spread
+                speed = 10
+                vx = math.cos(a) * speed
+                vy = math.sin(a) * speed
+                proj = Projectile(cx, cy, vx, vy, is_white_source=True, is_player_shot=False)
+                self.pending_projectiles.append(proj)
+
+    def behavior_black(self, player):
+        # Aggressive chase
+        dist_x = self.x - player.x
+        
+        if abs(dist_x) > 60:
+            if dist_x > 0:
+                self.vel_x = -self.speed_black
+            else:
+                self.vel_x = self.speed_black
+        else:
+            self.vel_x = 0
+            
+        self.facing = -1 if dist_x > 0 else 1
+
+    def draw(self, screen, is_white_mode, camera=None, offset=(0,0), scale=1.0):
+        ox, oy = offset
+        
+        cx = (self.x - ox) + self.width / 2
+        cy = (self.y - oy) + self.height / 2
+        
+        t = self.anim_timer
+        
+        # Colors based on player mode (inverted for contrast)
+        if is_white_mode:
+            fill_color = (20, 20, 20)  # Dark body
+            flame_color = (40, 40, 40)  # Black flames
+            flame_glow = (60, 60, 60)
+            eye_color = (255, 50, 50)  # Red eyes always
+            ink_color = (30, 30, 30)
+        else:
+            fill_color = (240, 240, 230)  # Cream body
+            flame_color = (255, 255, 250)  # White flames
+            flame_glow = (200, 200, 190)
+            eye_color = (255, 50, 50)
+            ink_color = (220, 220, 210)
+        
+        # --- Helper: Shiver/Rage Effect ---
+        def shiver_point(x, y, intensity=1.0):
+            shake_amp = 5.0 * intensity
+            dx = (random.random() - 0.5) * shake_amp
+            dy = (random.random() - 0.5) * shake_amp
+            return (x + dx, y + dy)
+        
+        # --- DRAW BURNING FLAMES (Behind character) ---
+        for p in self.flame_particles:
+            px = cx + p['x']
+            py = cy + p['y'] - self.height * 0.2
+            size = p['size'] * p['life']
+            alpha = int(200 * p['life'])
+            
+            # Draw flame shape (triangle pointing up)
+            flame_pts = [
+                (px, py - size),
+                (px - size * 0.6, py + size * 0.5),
+                (px + size * 0.6, py + size * 0.5)
+            ]
+            # Add flicker
+            flame_pts = [shiver_point(pt[0], pt[1], 0.5) for pt in flame_pts]
+            pygame.draw.polygon(screen, flame_color, flame_pts)
+            # Inner glow
+            inner_pts = [
+                (px, py - size * 0.6),
+                (px - size * 0.3, py + size * 0.3),
+                (px + size * 0.3, py + size * 0.3)
+            ]
+            pygame.draw.polygon(screen, flame_glow, inner_pts)
+        
+        # --- BODY (Tattered Robes) ---
+        hover_y = math.sin(t * 0.08) * 5
+        
+        shoulder_y = cy - self.height * 0.25 + hover_y
+        feet_y = cy + self.height * 0.4 + hover_y
+        
+        body_top_w = self.width * 0.35
+        body_bottom_w = self.width * 0.8
+        
+        robe_pts = []
+        robe_pts.append(shiver_point(cx + body_top_w/2, shoulder_y))
+        
+        # Bottom edge with tattered effect
+        num_robe_points = 25
+        for i in range(num_robe_points + 1):
+            prog = i / num_robe_points
+            base_x = (cx + body_bottom_w/2) - (body_bottom_w * prog)
+            
+            # Jagged tattered edge
+            tatter = abs(math.sin(prog * 20 - t * 0.3)) * 15
+            drip = math.sin(prog * 8 + t * 0.1) * 8
+            wave_y = tatter + drip
+            
+            tilt_x = -self.vel_x * 3 * prog
+            
+            pt_x = base_x + tilt_x
+            pt_y = feet_y + wave_y
+            
+            robe_pts.append(shiver_point(pt_x, pt_y))
+        
+        robe_pts.append(shiver_point(cx - body_top_w/2, shoulder_y))
+        
+        pygame.draw.polygon(screen, fill_color, robe_pts)
+        
+        # --- INK DRIPS from robes ---
+        for d in self.ink_drips:
+            dx = cx + d['x']
+            dy = cy + d['y']
+            size = int(d['size'] * d['life'])
+            if size > 0:
+                pygame.draw.circle(screen, ink_color, (int(dx), int(dy)), size)
+        
+        # --- HEAD ---
+        head_radius = self.width * 0.18
+        head_cy = shoulder_y - head_radius * 0.4
+        head_cx = cx
+        
+        head_pts = []
+        num_head_segments = 24
+        for i in range(num_head_segments):
+            angle = (i / num_head_segments) * 2 * math.pi
+            px = head_cx + math.cos(angle) * head_radius
+            py = head_cy + math.sin(angle) * head_radius
+            head_pts.append(shiver_point(px, py))
+            
+        pygame.draw.polygon(screen, fill_color, head_pts)
+        
+        # --- CRACKED HAT (Ashigasa with damage) ---
+        hat_w = self.width * 1.4
+        hat_h = self.height * 0.2
+        hat_base_y = head_cy + 5
+        
+        obj_shake_x = (random.random() - 0.5) * 8
+        obj_shake_y = (random.random() - 0.5) * 4
+        
+        # Main hat triangle
+        p1 = (cx - hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
+        p2 = (cx + hat_w/2 + obj_shake_x, hat_base_y + obj_shake_y)
+        p3 = (cx + obj_shake_x, hat_base_y - hat_h + obj_shake_y)
+        
+        hat_pts = []
+        steps = 15
+        for i in range(steps + 1):
+            t_val = i / steps
+            lx = p1[0] + (p2[0] - p1[0]) * t_val
+            ly = p1[1] + (p2[1] - p1[1]) * t_val
+            # Add cracks/damage to bottom edge
+            crack = random.uniform(-3, 3) if random.random() > 0.7 else 0
+            hat_pts.append(shiver_point(lx, ly + crack))
+        
+        hat_pts.append(shiver_point(p3[0], p3[1]))
+        
+        pygame.draw.polygon(screen, fill_color, hat_pts)
+        
+        # Hat cracks (lines)
+        crack_color = eye_color if random.random() > 0.5 else flame_glow
+        for _ in range(3):
+            crack_x = cx + random.uniform(-hat_w*0.3, hat_w*0.3) + obj_shake_x
+            crack_y1 = hat_base_y - hat_h * 0.3 + obj_shake_y
+            crack_y2 = hat_base_y + obj_shake_y
+            pygame.draw.line(screen, crack_color, 
+                           shiver_point(crack_x, crack_y1),
+                           shiver_point(crack_x + random.uniform(-5, 5), crack_y2), 2)
+        
+        # --- GLARING RED EYES ---
+        eye_y = head_cy - head_radius * 0.1
+        eye_spacing = head_radius * 0.5
+        
+        # Left eye
+        eye1_x = head_cx - eye_spacing
+        # Right eye
+        eye2_x = head_cx + eye_spacing
+        
+        # Eye glow effect
+        for i in range(3):
+            glow_size = 12 - i * 3
+            glow_alpha = 100 + i * 50
+            pygame.draw.circle(screen, (glow_alpha, 20, 20), 
+                             (int(eye1_x + obj_shake_x), int(eye_y + obj_shake_y)), glow_size)
+            pygame.draw.circle(screen, (glow_alpha, 20, 20), 
+                             (int(eye2_x + obj_shake_x), int(eye_y + obj_shake_y)), glow_size)
+        
+        # Core eyes
+        pygame.draw.circle(screen, eye_color, 
+                         (int(eye1_x + obj_shake_x), int(eye_y + obj_shake_y)), 6)
+        pygame.draw.circle(screen, eye_color, 
+                         (int(eye2_x + obj_shake_x), int(eye_y + obj_shake_y)), 6)
+        # White pupil glint
+        pygame.draw.circle(screen, (255, 255, 255), 
+                         (int(eye1_x + obj_shake_x + 2), int(eye_y + obj_shake_y - 2)), 2)
+        pygame.draw.circle(screen, (255, 255, 255), 
+                         (int(eye2_x + obj_shake_x + 2), int(eye_y + obj_shake_y - 2)), 2)
+        
+        # --- DUAL SWORDS (Corrupted & Jagged) ---
+        sword_len = self.width * 0.7
+        sword_width = 8
+        
+        # Sword 1 (right hand, angled forward)
+        sword1_base_x = cx + body_top_w * 0.3
+        sword1_base_y = shoulder_y + self.height * 0.15
+        sword1_angle = 0.4 + math.sin(t * 0.15) * 0.1  # Slight sway
+        
+        sword1_tip_x = sword1_base_x + math.cos(sword1_angle) * sword_len
+        sword1_tip_y = sword1_base_y + math.sin(sword1_angle) * sword_len * 0.3
+        
+        # Jagged sword shape
+        sword1_pts = [
+            shiver_point(sword1_base_x, sword1_base_y - sword_width/2),
+            shiver_point(sword1_tip_x, sword1_tip_y),
+            shiver_point(sword1_base_x, sword1_base_y + sword_width/2),
+        ]
+        pygame.draw.polygon(screen, flame_glow, sword1_pts)
+        # Sword edge
+        pygame.draw.line(screen, fill_color, 
+                        shiver_point(sword1_base_x, sword1_base_y),
+                        shiver_point(sword1_tip_x, sword1_tip_y), 2)
+        
+        # Sword 2 (left hand, angled back)
+        sword2_base_x = cx - body_top_w * 0.3
+        sword2_base_y = shoulder_y + self.height * 0.15
+        sword2_angle = math.pi - 0.4 - math.sin(t * 0.15) * 0.1
+        
+        sword2_tip_x = sword2_base_x + math.cos(sword2_angle) * sword_len
+        sword2_tip_y = sword2_base_y + math.sin(sword2_angle) * sword_len * 0.3
+        
+        sword2_pts = [
+            shiver_point(sword2_base_x, sword2_base_y - sword_width/2),
+            shiver_point(sword2_tip_x, sword2_tip_y),
+            shiver_point(sword2_base_x, sword2_base_y + sword_width/2),
+        ]
+        pygame.draw.polygon(screen, flame_glow, sword2_pts)
+        pygame.draw.line(screen, fill_color,
+                        shiver_point(sword2_base_x, sword2_base_y),
+                        shiver_point(sword2_tip_x, sword2_tip_y), 2)
+        
+        # --- MORE FLAMES (In front, for layering) ---
+        for i, p in enumerate(self.flame_particles[:10]):
+            px = cx + p['x'] * 0.8
+            py = cy + p['y'] * 0.5 - self.height * 0.1
+            size = p['size'] * p['life'] * 0.7
+            
+            flame_pts = [
+                (px, py - size),
+                (px - size * 0.4, py + size * 0.3),
+                (px + size * 0.4, py + size * 0.3)
+            ]
+            flame_pts = [shiver_point(pt[0], pt[1], 0.3) for pt in flame_pts]
+            pygame.draw.polygon(screen, flame_color, flame_pts)
+

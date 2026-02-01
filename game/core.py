@@ -5,9 +5,7 @@ from .settings import *
 from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave, Portal
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
-from .enemy import MirrorRonin
-
-from .enemy import MirrorRonin
+from .enemy import MirrorRonin, ShadowSelf
 from .settings_manager import save_settings # Import settings manager
 
 def run(screen, settings):
@@ -200,7 +198,7 @@ def run(screen, settings):
                 # Final safe zone with portal
                 {'x': 9950, 'y': base_y-460, 'w': 700, 'type': 'neutral'},
             ]
-        else:  # LEVEL_1
+        elif level == "LEVEL_1":
             platforms_data = [
                 # Level 1 - The original harder level
                 {'x': 50, 'y': base_y, 'w': 500, 'type': 'neutral'},
@@ -229,6 +227,86 @@ def run(screen, settings):
                 {'x': 7400, 'y': base_y-400, 'w': 200, 'type': 'white'},
                 {'x': 7700, 'y': base_y-200, 'w': 1000, 'type': 'neutral'},
             ]
+        else:  # THE INNER SANCTUM - Final Boss Level (Strategic/Puzzle-focused)
+            platforms_data = [
+                # ========== SECTION 1: THE AWAKENING (0-2500px) ==========
+                # Introduce the concept - think before you jump
+                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+                # First puzzle: White platform leads to black, must toggle mid-air or before
+                {'x': 550, 'y': base_y-100, 'w': 200, 'type': 'white'},
+                {'x': 850, 'y': base_y-100, 'w': 200, 'type': 'black'},  # Same height - must toggle!
+                {'x': 1150, 'y': base_y-50, 'w': 300, 'type': 'neutral'},
+                # Rising with alternation - plan your mode
+                {'x': 1550, 'y': base_y-150, 'w': 180, 'type': 'black'},
+                {'x': 1830, 'y': base_y-250, 'w': 180, 'type': 'white'},
+                {'x': 2100, 'y': base_y-150, 'w': 250, 'type': 'neutral'},
+                
+                # ========== SECTION 2: THE DESCENT CHOICE (2500-5000px) ==========
+                # Two paths visible - only one correct based on mode
+                {'x': 2450, 'y': base_y-250, 'w': 150, 'type': 'white'},
+                {'x': 2700, 'y': base_y-350, 'w': 150, 'type': 'black'},
+                # Upper route (black) vs lower route (white) - converge later
+                {'x': 3000, 'y': base_y-250, 'w': 200, 'type': 'white'},  # Lower path
+                {'x': 2950, 'y': base_y-500, 'w': 200, 'type': 'black'},  # Upper path
+                # Convergence
+                {'x': 3300, 'y': base_y-350, 'w': 300, 'type': 'neutral'},
+                # Triple mode puzzle - must switch twice
+                {'x': 3700, 'y': base_y-400, 'w': 180, 'type': 'white'},
+                {'x': 3980, 'y': base_y-450, 'w': 180, 'type': 'black'},
+                {'x': 4260, 'y': base_y-400, 'w': 180, 'type': 'white'},
+                {'x': 4540, 'y': base_y-300, 'w': 300, 'type': 'neutral'},
+                
+                # ========== SECTION 3: THE TOWER OF DUALITY (5000-8000px) ==========
+                # Vertical climb with strategic mode switching
+                {'x': 4940, 'y': base_y-400, 'w': 150, 'type': 'black'},
+                {'x': 5180, 'y': base_y-550, 'w': 150, 'type': 'white'},
+                {'x': 5420, 'y': base_y-700, 'w': 150, 'type': 'black'},
+                {'x': 5660, 'y': base_y-850, 'w': 200, 'type': 'neutral'},  # Rest point
+                # Horizontal gauntlet at height - think about timing
+                {'x': 5960, 'y': base_y-900, 'w': 200, 'type': 'black'},
+                {'x': 6260, 'y': base_y-900, 'w': 200, 'type': 'white'},
+                {'x': 6560, 'y': base_y-900, 'w': 200, 'type': 'black'},
+                # Descent requires opposite mode thinking
+                {'x': 6860, 'y': base_y-750, 'w': 180, 'type': 'white'},
+                {'x': 7140, 'y': base_y-600, 'w': 180, 'type': 'black'},
+                {'x': 7420, 'y': base_y-450, 'w': 180, 'type': 'white'},
+                {'x': 7700, 'y': base_y-300, 'w': 300, 'type': 'neutral'},
+                
+                # ========== SECTION 4: THE MAZE OF MINDS (8000-11000px) ==========
+                # Multiple platforms visible - only correct sequence works
+                {'x': 8100, 'y': base_y-350, 'w': 150, 'type': 'black'},
+                {'x': 8350, 'y': base_y-450, 'w': 150, 'type': 'black'},
+                {'x': 8300, 'y': base_y-250, 'w': 120, 'type': 'white'},  # Trap - leads nowhere!
+                {'x': 8600, 'y': base_y-550, 'w': 200, 'type': 'neutral'},
+                # Staircase illusion - must go up then down
+                {'x': 8900, 'y': base_y-650, 'w': 200, 'type': 'white'},
+                {'x': 9200, 'y': base_y-800, 'w': 150, 'type': 'black'},
+                {'x': 9450, 'y': base_y-650, 'w': 150, 'type': 'white'},  # Drop back down
+                {'x': 9700, 'y': base_y-500, 'w': 200, 'type': 'neutral'},
+                # The zigzag of fate - few but meaningful
+                {'x': 10000, 'y': base_y-600, 'w': 180, 'type': 'black'},
+                {'x': 10280, 'y': base_y-450, 'w': 180, 'type': 'white'},
+                {'x': 10560, 'y': base_y-350, 'w': 250, 'type': 'neutral'},
+                
+                # ========== SECTION 5: THE FINAL TRIAL (11000-14000px) ==========
+                # Long jumps with mode commitment - no going back
+                {'x': 10910, 'y': base_y-450, 'w': 200, 'type': 'white'},
+                {'x': 11250, 'y': base_y-550, 'w': 200, 'type': 'black'},
+                {'x': 11590, 'y': base_y-450, 'w': 200, 'type': 'white'},
+                {'x': 11930, 'y': base_y-350, 'w': 300, 'type': 'neutral'},
+                # Rising finale - each jump is a decision
+                {'x': 12350, 'y': base_y-500, 'w': 180, 'type': 'black'},
+                {'x': 12650, 'y': base_y-650, 'w': 180, 'type': 'white'},
+                {'x': 12950, 'y': base_y-800, 'w': 180, 'type': 'black'},
+                {'x': 13250, 'y': base_y-950, 'w': 200, 'type': 'neutral'},
+                # Last precision challenge - but still strategic (100px platforms)
+                {'x': 13580, 'y': base_y-1050, 'w': 100, 'type': 'white'},
+                {'x': 13800, 'y': base_y-1150, 'w': 100, 'type': 'black'},
+                {'x': 14020, 'y': base_y-1050, 'w': 100, 'type': 'white'},
+                
+                # ========== VICTORY: THE INNER SANCTUM ==========
+                {'x': 14250, 'y': base_y-1000, 'w': 700, 'type': 'neutral'},
+            ]
         
         platforms = []
         spikes = []
@@ -248,22 +326,29 @@ def run(screen, settings):
             plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral)
             platforms.append(plat)
             
-        # Portal for tutorial level (at end of last platform)
+        # Portal for levels with transitions
         portal = None
         if level == "TUTORIAL":
             last_plat = platforms_data[-1]
             portal_x = last_plat['x'] + last_plat['w'] - 80  # Near end of last platform
             portal_y = last_plat['y'] - 60  # Above platform
             portal = Portal(portal_x, portal_y)
+        elif level == "LEVEL_1":
+            # Portal at end of LEVEL_1 to transition to The Inner Sanctum
+            last_plat = platforms_data[-1]
+            portal_x = last_plat['x'] + last_plat['w'] - 80
+            portal_y = last_plat['y'] - 60
+            portal = Portal(portal_x, portal_y)
         
         # Spawn Enemies
         enemies = []
         if level == "TUTORIAL":
-            # Spawn enemy on the last platform of tutorial
+            # Spawn the ShadowSelf boss on the last platform of tutorial
             last_plat = platforms_data[-1]
-            enemy_x = last_plat['x'] + last_plat['w'] // 2 - 25
-            enemy_y = last_plat['y'] - 60
-            enemies = [MirrorRonin(enemy_x, enemy_y)]
+            # ShadowSelf is 200x200, so position it centered on platform
+            enemy_x = last_plat['x'] + last_plat['w'] // 2 - 100  # Center the 200px wide boss
+            enemy_y = last_plat['y'] - 210  # Higher due to 200px height
+            enemies = [ShadowSelf(enemy_x, enemy_y)]
         elif level == "LEVEL_1":
             # Spawn enemy on the last platform
             last_plat = platforms_data[-1]
@@ -276,6 +361,14 @@ def run(screen, settings):
             middle_enemy_y = middle_plat['y'] - 60
             
             enemies = [MirrorRonin(enemy_x, enemy_y), MirrorRonin(middle_enemy_x, middle_enemy_y)]
+        else:  # THE INNER SANCTUM
+            # Strategic enemy placement - guards at decision points
+            enemies = [
+                MirrorRonin(3300 + 150, base_y - 350 - 60),  # At convergence point
+                MirrorRonin(5660 + 100, base_y - 850 - 60),  # Tower rest point
+                MirrorRonin(9700 + 100, base_y - 500 - 60),  # Maze exit
+                MirrorRonin(14250 + 350, base_y - 1000 - 60),  # Final boss at sanctum
+            ]
         
         projectiles = []
         effects = []
@@ -604,15 +697,26 @@ def run(screen, settings):
             
             sw, sh = screen.get_size()
             
-            # "LEVEL 1" text at top
+            # Level title text based on next level
             level_font = pygame.font.Font(None, 120)
-            level_text = level_font.render("LEVEL 1", True, (255, 255, 255))
+            sub_font = pygame.font.Font(None, 40)
+            
+            if next_level == "LEVEL_1":
+                level_title = "LEVEL 1"
+                sub_title = "The Journey Begins"
+            elif next_level == "INNER_SANCTUM":
+                level_title = "THE INNER SANCTUM"
+                sub_title = "Face Your Inner Demons"
+            else:
+                level_title = "LOADING"
+                sub_title = ""
+            
+            level_text = level_font.render(level_title, True, (255, 255, 255))
             level_rect = level_text.get_rect(center=(sw // 2, sh // 4))
             screen.blit(level_text, level_rect)
             
             # Subtitle
-            sub_font = pygame.font.Font(None, 40)
-            sub_text = sub_font.render("The Journey Begins", True, (150, 150, 150))
+            sub_text = sub_font.render(sub_title, True, (150, 150, 150))
             sub_rect = sub_text.get_rect(center=(sw // 2, sh // 4 + 60))
             screen.blit(sub_text, sub_rect)
             
@@ -824,7 +928,7 @@ def run(screen, settings):
                     blackhole_suction_active = False
                     continue  # Skip rest of update this frame
                 
-                # Portal Update and Collision (Tutorial Level only)
+                # Portal Update and Collision
                 if portal and not blackhole_suction_active and not loading_screen_active:
                     portal.update()
                     
@@ -835,7 +939,11 @@ def run(screen, settings):
                         blackhole_suction_timer = 0.0
                         blackhole_player_scale = 1.0
                         blackhole_player_rotation = 0.0
-                        next_level = "LEVEL_1"
+                        # Set next level based on current level
+                        if current_level == "TUTORIAL":
+                            next_level = "LEVEL_1"
+                        elif current_level == "LEVEL_1":
+                            next_level = "INNER_SANCTUM"
                 
                 # Blackhole Suction Animation Logic
                 if blackhole_suction_active:
