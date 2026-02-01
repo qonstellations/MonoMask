@@ -2,97 +2,12 @@ import pygame
 import sys
 import traceback
 import random
-import math
 from .settings import *
 from .sprites import Player, Platform, Projectile, SplatBlast, Spike, SlashWave, BlackHole, Shard
 from .utils import draw_game, draw_distortion, CrumbleEffect, Camera
 from .background import ParallaxBackground
 from .enemy import MirrorRonin, ShadowSelf
 from .settings_manager import save_settings # Import settings manager
-
-
-def draw_mask_circle(surface, center_x, center_y, scale, color):
-    """
-    Draws a circular mask shadow with sharp angry eyes.
-    scale: 0.0 = tiny, 1.0 = fills screen, >1.0 = overfills
-    """
-    if scale <= 0.01:
-        return
-    
-    # Base radius - sized to cover the screen diagonally at scale=1.0
-    max_dim = max(surface.get_width(), surface.get_height())
-    base_radius = max_dim * 0.6
-    
-    radius = int(base_radius * scale)
-    
-    if radius > 0:
-        pygame.draw.circle(surface, color, (int(center_x), int(center_y)), radius)
-        
-        # Draw sharp angry eyes (contrasting color to create "cut out" effect)
-        bg_color = (240, 240, 230) if color == (5, 5, 5) or color == (20, 20, 20) else (5, 5, 5)
-        
-        eye_width = int(radius * 0.28)
-        eye_height = int(radius * 0.10)
-        eye_spacing = int(radius * 0.32)
-        eye_y = int(center_y - radius * 0.05)
-        
-        if eye_width > 4:
-            # Left eye - slanted down toward center (angry)
-            left_eye_pts = [
-                (center_x - eye_spacing - eye_width//2, eye_y - eye_height//3),  # Top left (higher)
-                (center_x - eye_spacing + eye_width//2, eye_y + eye_height//2),   # Top right (lower, angry slant)
-                (center_x - eye_spacing + eye_width//3, eye_y + eye_height),       # Bottom right
-                (center_x - eye_spacing - eye_width//2, eye_y + eye_height//3),   # Bottom left
-            ]
-            pygame.draw.polygon(surface, bg_color, left_eye_pts)
-            
-            # Right eye - slanted down toward center (angry, mirrored)
-            right_eye_pts = [
-                (center_x + eye_spacing + eye_width//2, eye_y - eye_height//3),  # Top right (higher)
-                (center_x + eye_spacing - eye_width//2, eye_y + eye_height//2),   # Top left (lower, angry slant)
-                (center_x + eye_spacing - eye_width//3, eye_y + eye_height),       # Bottom left
-                (center_x + eye_spacing + eye_width//2, eye_y + eye_height//3),   # Bottom right
-            ]
-            pygame.draw.polygon(surface, bg_color, right_eye_pts)
-    
-
-def draw_almond_eye(surface, cx, cy, width, height, color, slant=0):
-    """
-    Draws an almond-shaped eye hole.
-    slant: negative = left side lower, positive = right side lower
-    """
-    points = []
-    num_pts = 20
-    
-    for i in range(num_pts):
-        t = i / (num_pts - 1)  # 0 to 1
-        
-        # Parametric almond shape
-        angle = t * math.pi  # 0 to pi for top arc
-        px = cx + math.cos(angle) * (width / 2)
-        
-        # Height follows a peaked curve
-        peak = math.sin(angle)
-        py_offset = peak * height / 2
-        
-        # Apply slant
-        slant_offset = (t - 0.5) * slant * height
-        
-        points.append((px, cy - py_offset + slant_offset))
-    
-    # Bottom arc (reverse)
-    for i in range(num_pts - 1, -1, -1):
-        t = i / (num_pts - 1)
-        angle = t * math.pi
-        px = cx + math.cos(angle) * (width / 2)
-        peak = math.sin(angle)
-        py_offset = peak * height / 2
-        slant_offset = (t - 0.5) * slant * height
-        
-        points.append((px, cy + py_offset + slant_offset))
-    
-    if len(points) >= 3:
-        pygame.draw.polygon(surface, color, points)
 
 def run(screen, settings, start_new_game=False):
     # Initialize Pygame Mixer (Safe to call multiple times or checks init)
@@ -641,19 +556,12 @@ def run(screen, settings, start_new_game=False):
     scroll_x = 0
     scroll_y = 0 # No vertical scroll yet
     
-    # Transition State (Legacy Circle Reveal)
+    # Transition State
     transition_active = False
     transition_radius = 0
     transition_speed = 80 # Very fast
     max_radius = int((SCREEN_WIDTH**2 + SCREEN_HEIGHT**2)**0.5) + 50
     transition_center = (0, 0)
-    
-    # Mask Shadow Zoom Transition State
-    mask_transition_active = False
-    mask_transition_progress = 0.0  # 0.0 to 1.0
-    mask_transition_direction = "ZOOM_IN"  # ZOOM_IN (mask off) or ZOOM_OUT (mask on)
-    mask_transition_duration = 0.1  # Duration in seconds (very fast snap)
-    mask_transition_old_is_white = True  # The mode BEFORE transition
     
     # Music State
     music_loaded = False
@@ -939,21 +847,18 @@ def run(screen, settings, start_new_game=False):
                                 # Play "Locked" sound or visual shake?
                                 # For now just ignore
                                 pass
-                            elif not mask_transition_active and not transition_active:
-                                # START MASK SHADOW ZOOM TRANSITION
-                                mask_transition_active = True
-                                mask_transition_progress = 0.0
-                                mask_transition_old_is_white = player.is_white
+                            elif not transition_active:
+                                # START TRANSITION
+                                transition_active = True
+                                transition_radius = 0
+                                # Get player center in SCREEN coordinates (camera-adjusted)
+                                player_rect = player.get_rect()
+                                player_screen_x = player_rect.centerx - scroll_x
+                                player_screen_y = player_rect.centery - scroll_y
+                                transition_center = (int(player_screen_x), int(player_screen_y))
                                 
-                                # Direction: Going TO chaos = ZOOM_IN, Going TO peace = ZOOM_OUT
-                                if player.is_white:
-                                    # Currently white (peace), going to black (chaos)
-                                    mask_transition_direction = "ZOOM_IN"
-                                else:
-                                    # Currently black (chaos), going to white (peace)
-                                    mask_transition_direction = "ZOOM_OUT"
-                                
-                                # Capture OLD state for blending
+                                # Capture OLD state (including distortion)
+                                # Passing background=background to ensure consistent capture
                                 draw_game(old_screen_capture, player.is_white, player, 
                                          platforms=platforms, 
                                          projectiles=projectiles, 
@@ -964,14 +869,16 @@ def run(screen, settings, start_new_game=False):
                                          enemies=enemies, 
                                          offset=camera_offset,
                                          portal=portal)
+                                # Note: We capture with current intensity
                                 intensity = min(1.0, tension_duration / 12.0)
                                 draw_distortion(old_screen_capture, intensity)
                                 
-                                # Perform Swap immediately (we'll render the transition effect)
+                                # Perform Swap
                                 player.swap_mask()
                                 
                                 # Sanity Reset: If switching to White (Calm), 
                                 # ensure tension is below the Forced Trigger (8.0)
+                                # otherwise it will instantly swap back next frame.
                                 if player.is_white:
                                     tension_duration = min(tension_duration, 7.0)
                                 
@@ -1230,12 +1137,10 @@ def run(screen, settings, start_new_game=False):
                 
                 # Forced Switch Logic (Trigger at 8.0 Tension)
                 if player.is_white and tension_duration >= 8.0:
-                     if not mask_transition_active and not transition_active:
-                         # START MASK SHADOW ZOOM TRANSITION (Forced)
-                         mask_transition_active = True
-                         mask_transition_progress = 0.0
-                         mask_transition_old_is_white = player.is_white
-                         mask_transition_direction = "ZOOM_IN"  # Going to chaos
+                     if not transition_active:
+                         transition_active = True
+                         transition_radius = 0
+                         transition_center = player.get_rect().center
                          
                          draw_game(old_screen_capture, player.is_white, player, 
                                   platforms=platforms, 
@@ -1779,64 +1684,7 @@ def run(screen, settings, start_new_game=False):
             
             # --- DRAW SEQUENCE ---
             
-            # === MASK SHADOW ZOOM TRANSITION ===
-            if mask_transition_active:
-                # Update progress
-                mask_transition_progress += dt / mask_transition_duration
-                
-                if mask_transition_progress >= 1.0:
-                    mask_transition_progress = 1.0
-                    mask_transition_active = False
-                
-                # Fast ease-out for snappy feel
-                t = mask_transition_progress
-                eased = 1 - (1 - t) * (1 - t)  # Ease out quadratic
-                
-                # Calculate mask scale - both directions expand from center outward
-                if mask_transition_direction == "ZOOM_IN":
-                    # Going to chaos: black circle expands from 0, peaks, then shrinks
-                    if eased < 0.4:
-                        mask_scale = (eased / 0.4) * 1.8  # 0 -> 1.8 (fast expand)
-                    else:
-                        mask_scale = 1.8 * (1 - (eased - 0.4) / 0.6)  # 1.8 -> 0 (shrink away)
-                else:  # ZOOM_OUT
-                    # Going to peace: white circle expands from 0, peaks, then shrinks (same as ZOOM_IN)
-                    if eased < 0.4:
-                        mask_scale = (eased / 0.4) * 1.8  # 0 -> 1.8 (fast expand from center)
-                    else:
-                        mask_scale = 1.8 * (1 - (eased - 0.4) / 0.6)  # 1.8 -> 0 (shrink away)
-                
-                # Determine which background to show (switch early for snappy feel)
-                show_new_state = eased >= 0.35
-                
-                # Draw base state
-                if show_new_state:
-                    # Draw NEW state (after swap)
-                    shake_offset = (camera_offset[0] + shake_x, camera_offset[1] + shake_y)
-                    draw_game(canvas, player.is_white, player, 
-                             platforms=platforms, 
-                             projectiles=projectiles, 
-                             effects=effects, 
-                             background=background, 
-                             spikes=spikes, 
-                             camera=camera, 
-                             enemies=enemies, 
-                             offset=shake_offset,
-                             portal=portal)
-                    draw_distortion(canvas, intensity)
-                else:
-                    # Draw OLD state (before swap)
-                    canvas.blit(old_screen_capture, (0, 0))
-                
-                # Draw circular mask overlay
-                if mask_scale > 0.01:
-                    sw, sh = canvas.get_size()
-                    # Black mask when going TO chaos, White/cream mask when going TO peace
-                    mask_color = BLACK_MATTE if mask_transition_direction == "ZOOM_IN" else CREAM
-                    draw_mask_circle(canvas, sw // 2, sh // 2, mask_scale, mask_color)
-                
-            elif transition_active:
-                # Legacy circle reveal transition
+            if transition_active:
                 transition_radius += transition_speed
                 
                 # 1. Draw NEW state to next_state_capture
