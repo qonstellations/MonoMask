@@ -1,10 +1,10 @@
 Traceback (most recent call last):
-  File "C:\Users\krish\MonoMask\main.py", line 111, in <module>
+  File "C:\Users\krish\MonoMask\main.py", line 119, in <module>
     main()
     ~~~~^^
-  File "C:\Users\krish\MonoMask\main.py", line 89, in main
-    result = run_game(screen, settings)
-  File "C:\Users\krish\MonoMask\game\core.py", line 1306, in run
-    if enemy.marked_for_deletion:
-       ^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'Minion' object has no attribute 'marked_for_deletion'
+  File "C:\Users\krish\MonoMask\main.py", line 97, in main
+    result = run_game(screen, settings, start_new_game=start_new_game)
+  File "C:\Users\krish\MonoMask\game\core.py", line 671, in run
+    crumble_effect.update()
+    ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'update'

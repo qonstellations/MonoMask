@@ -1248,8 +1248,10 @@ class Spike:
                 pygame.draw.polygon(screen, (255, 255, 255), draw_pts) # White fill
                 pygame.draw.polygon(screen, (0, 0, 0), draw_pts, 2) # Black outline
         else:
-            # Standard Red Spikes
-            color = RED if is_white_mode else (255, 50, 50)
+            # Standard Spikes - Final Fix (White on Black, Black on White)
+            # if is_white_mode (Light BG) -> Black Spikes
+            # if not is_white_mode (Dark BG) -> White Spikes
+            color = (20, 20, 20) if is_white_mode else (230, 230, 230)
             pygame.draw.polygon(screen, color, draw_pts)
 
 class Projectile:

@@ -107,26 +107,41 @@ def draw_game(surface, is_white_mode, player, platforms, projectiles=None, effec
     sh = surface.get_height()
     
     # UI CONFIG
-    bar_width = 200
-    bar_height = 8 # Thin, elegant
+    # UI CONFIG
+    bar_width = 400
+    bar_height = 25
     margin = 20
     
-    # 1. PLAYER HEALTH (Top Left)
-    p_x = margin
-    p_y = margin
+    # 1. PLAYER HEALTH (Top Center)
+    p_x = sw // 2 - bar_width // 2
+    p_y = 40
     
-    # Label "HP"
-    label_font = pygame.font.Font(None, 20)
-    label = label_font.render("VITALS", True, (150, 150, 150))
-    surface.blit(label, (p_x, p_y - 15))
+    # Label "VITALS" (Black Text now for contrast if white bg, or White if black bg? Let's use adaptive or simple Black)
+    # User said "full black bar". This implies the FILL is black.
+    # Background should probably be White or Grey to show the empty space.
     
-    # Bar Background
-    pygame.draw.rect(surface, (20, 20, 20), (p_x, p_y, bar_width, bar_height))
-    # Bar Fill (White)
+    label_font = pygame.font.Font(None, 24)
+    # INVERTED COLORS for UI
+    # White Mode (Light BG) -> Black UI
+    # Black Mode (Dark BG) -> White UI
+    
+    ui_main_color = (0, 0, 0) if is_white_mode else (255, 255, 255)
+    ui_bg_color = (230, 230, 230) if is_white_mode else (30, 30, 30)
+    
+    label = label_font.render("VITALS", True, ui_main_color)
+    label_rect = label.get_rect(midbottom=(sw // 2, p_y - 5))
+    surface.blit(label, label_rect)
+    
+    # Bar Container (Empty part)
+    pygame.draw.rect(surface, ui_bg_color, (p_x, p_y, bar_width, bar_height))
+    
+    # Bar Fill (Solid Color) - Shrinks
     p_pct = max(0, player.health / player.max_health)
-    pygame.draw.rect(surface, (220, 220, 220), (p_x, p_y, int(bar_width * p_pct), bar_height))
+    fill_width = int(bar_width * p_pct)
+    pygame.draw.rect(surface, ui_main_color, (p_x, p_y, fill_width, bar_height))
+    
     # Border
-    pygame.draw.rect(surface, (255, 255, 255), (p_x, p_y, bar_width, bar_height), 1)
+    pygame.draw.rect(surface, ui_main_color, (p_x, p_y, bar_width, bar_height), 2)
 
     # 2. BOSS HEALTH (Top Right)
     boss = None

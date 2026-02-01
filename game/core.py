@@ -139,10 +139,72 @@ def run(screen, settings, start_new_game=False):
         
         # Define level data based on current level
         if level == "TUTORIAL":
-            # ========== TEST ARENA FOR VILLAIN TESTING ==========
-            # Simple flat surface with boss in front of player
+            # Basic Tutorial Layout (Restored)
             platforms_data = [
-                {'x': 50, 'y': base_y, 'w': 2000, 'type': 'neutral'},  # Large flat platform
+                # ========== SECTION 1: BASICS (Learning to move) ==========
+                # Starting area - large, safe
+                {'x': 50, 'y': base_y, 'w': 400, 'type': 'neutral'},
+                # Easy first jump (small gap, same height)
+                {'x': 500, 'y': base_y-100, 'w': 290, 'type': 'neutral'},
+                # Second easy jump
+                {'x': 890, 'y': base_y-180, 'w': 150, 'type': 'neutral'},
+                # Gentle rise (short gap, slight height)
+                {'x': 1200, 'y': base_y-50, 'w': 500, 'type': 'neutral'},
+                
+                # ========== SECTION 2: INTRODUCE WHITE PLATFORMS ==========
+                # Safe landing before white intro
+                {'x': 1800, 'y': base_y-120, 'w': 350, 'type': 'neutral'},
+                # First white platform (easy jump)
+                {'x': 2200, 'y': base_y-80, 'w': 250, 'type': 'white'},
+                # Second white platform (practice)
+                {'x': 2550, 'y': base_y-20, 'w': 250, 'type': 'white'},
+                # Back to neutral for breathing room
+                {'x': 2900, 'y': base_y-50, 'w': 400, 'type': 'neutral'},
+                
+                # ========== SECTION 3: INTRODUCE BLACK PLATFORMS ==========
+                # Black platform intro
+                {'x': 3400, 'y': base_y-100, 'w': 150, 'type': 'black'},
+                # Second black platform
+                {'x': 3650, 'y': base_y-130, 'w': 150, 'type': 'black'},
+                # Neutral rest area
+                {'x': 3900, 'y': base_y-50, 'w': 450, 'type': 'neutral'},
+                
+                # ========== SECTION 4: MIXED PLATFORMING ==========
+                # Alternating white and black
+                {'x': 4420, 'y': base_y-150, 'w': 80, 'type': 'white'},
+                {'x': 4150, 'y': base_y-280, 'w': 200, 'type': 'black'},
+                {'x': 4450, 'y': base_y-400, 'w': 250, 'type': 'white'},
+                # Large neutral landing
+                {'x': 4800, 'y': base_y-100, 'w': 600, 'type': 'neutral'},
+                
+                # ========== SECTION 5: MODERATE CHALLENGE ==========
+                # Rising platforms with gaps
+                {'x': 5500, 'y': base_y-200, 'w': 150, 'type': 'neutral'},
+                {'x': 5750, 'y': base_y-280, 'w': 150, 'type': 'white'},
+                {'x': 6000, 'y': base_y-360, 'w': 150, 'type': 'black'},
+                {'x': 6250, 'y': base_y-440, 'w': 150, 'type': 'neutral'},
+                # Descending back down
+                {'x': 6500, 'y': base_y-350, 'w': 150, 'type': 'white'},
+                {'x': 6750, 'y': base_y-260, 'w': 150, 'type': 'black'},
+                {'x': 7000, 'y': base_y-170, 'w': 200, 'type': 'neutral'},
+                
+                # ========== SECTION 6: LONGER JUMPS ==========
+                # Bigger gaps requiring commitment
+                {'x': 7400, 'y': base_y-150, 'w': 250, 'type': 'neutral'},
+                {'x': 7700, 'y': base_y-200, 'w': 220, 'type': 'white'},
+                {'x': 8000, 'y': base_y-250, 'w': 200, 'type': 'black'},
+                {'x': 8300, 'y': base_y-200, 'w': 350, 'type': 'neutral'},
+                
+                # ========== SECTION 7: FINAL APPROACH ==========
+                # Staircase up to the portal
+                {'x': 8750, 'y': base_y-250, 'w': 250, 'type': 'white'},
+                {'x': 9050, 'y': base_y-320, 'w': 250, 'type': 'black'},
+                {'x': 9350, 'y': base_y-390, 'w': 250, 'type': 'white'},
+                {'x': 9650, 'y': base_y-460, 'w': 250, 'type': 'black'},
+                
+                # ========== PORTAL AREA ==========
+                # Final safe zone with portal
+                {'x': 9950, 'y': base_y-460, 'w': 700, 'type': 'neutral'},
             ]
         elif level == "LEVEL_1":
             # Level 1 and Level 2 - The original harder level (TODO: add unique LEVEL_2 layout)
@@ -266,7 +328,7 @@ def run(screen, settings, start_new_game=False):
                 {'x': 1800, 'y': base_y-600, 'w': 50, 'type': 'white'},
                 {'x': 2000, 'y': base_y-600, 'w': 200, 'type': 'white', 'is_slider': True}, # glider 
                 {'x': 2300, 'y': base_y-1600, 'w': 200, 'type': 'neutral'},
-                {'x': 2500, 'y': base_y-1200, 'w': 2800, 'type': 'neutral'}, # upper platform
+                {'x': 2500, 'y': base_y-1200, 'w': 2800, 'type': 'neutral', 'has_spikes': True}, # upper platform (Added Spikes)
 
                 {'x': 2600, 'y': base_y-1500, 'w': 200, 'type': 'white'},
                 {'x': 2900, 'y': base_y-1400, 'w': 200, 'type': 'white'},
@@ -377,6 +439,20 @@ def run(screen, settings, start_new_game=False):
             plat = Platform(p_data['x'], p_data['y'], p_data['w'], 30, is_white=is_white, is_neutral=is_neutral, is_slider=is_slider, is_mystical=is_mystical, slider_range=p_data.get('slider_range', 1000), is_pillar=is_pillar)
             platforms.append(plat)
             
+            # Spike Generation
+            if p_data.get('has_spikes', False):
+                # Generate spikes along the top
+                spike_w = 30
+                spike_h = 30
+                num_spikes = p_data['w'] // spike_w
+                start_x = p_data['x']
+                
+                for i in range(num_spikes):
+                    s_x = start_x + i * spike_w
+                    s_y = p_data['y'] - spike_h
+                    spike = Spike(s_x, s_y, spike_w, spike_h, is_white=is_white, is_neutral=is_neutral, is_mystical=is_mystical)
+                    spikes.append(spike)
+            
         # Portal for levels with transitions
         portal = None
         if level in ["TUTORIAL", "LEVEL_1", "LEVEL_2", "LEVEL_3", "LEVEL_4"]:
@@ -389,10 +465,11 @@ def run(screen, settings, start_new_game=False):
         # Spawn Enemies
         enemies = []
         if level == "TUTORIAL":
-            # TEST ARENA: Spawn ShadowSelf boss 600px ahead of player for testing
-            enemy_x = 700  # Player starts at ~150, so boss is 550px ahead
-            enemy_y = base_y - 210  # On the platform (200px height)
-            enemies = [ShadowSelf(enemy_x, enemy_y)]
+            # Spawn MirrorRonin guarding the portal at end of Tutorial
+            # Platform: {'x': 9950, 'y': base_y-460, 'w': 700}
+            enemy_x = 9950 + 350 # Center of platform
+            enemy_y = base_y - 460 - 60
+            enemies = [MirrorRonin(enemy_x, enemy_y)]
         elif level == "LEVEL_1":
             # Spawn enemy on the last platform
             last_plat = platforms_data[-1]
@@ -428,8 +505,11 @@ def run(screen, settings, start_new_game=False):
             enemies = []
         elif level == "LEVEL_4":
             last_plat = platforms_data[-1]
-            # Spawn ON the last platform (width 50)
-            enemies = [MirrorRonin(last_plat['x'], last_plat['y'] - 60)]
+            # Spawn Boss safely on the tiled floor (Range 50-2550)
+            # Spawn at x=2000 to give player space but be on screen/near
+            boss_x = 2000
+            boss_y = base_y + 400 - 200 # base_y+400 is platform Y, -200 is boss height
+            enemies = [ShadowSelf(boss_x, boss_y)]
         
         projectiles = []
         effects = []
@@ -561,8 +641,12 @@ def run(screen, settings, start_new_game=False):
             pygame.display.flip()
             continue
 
-        # --- GAME OVER LOGIC (NO ANIMATION) ---
+        # --- GAME OVER LOGIC (MIND FRACTURED) ---
         if game_over:
+            # Initialize Crumble Effect if needed
+            if crumble_effect is None:
+                crumble_effect = CrumbleEffect(canvas)
+            
             # Input: R to Restart
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -572,6 +656,7 @@ def run(screen, settings, start_new_game=False):
                         # Restart
                         player, platforms, spikes, projectiles, effects, enemies, portal, doors = reset_game(current_level)
                         game_over = False
+                        crumble_effect = None # Reset effect
                         paused = False
                         tension_duration = 0.0
                         overload_timer = 0.0
@@ -579,29 +664,21 @@ def run(screen, settings, start_new_game=False):
                         scroll_x = 0
                         scroll_y = 0
                         transition_active = False
+                        
+                        continue # Restart loop immediately to avoid running update() on None
 
-
-            # Draw "Mind Fractured" Static Background
-            half_w = SCREEN_WIDTH // 2
-            pygame.draw.rect(screen, CREAM, (0, 0, half_w, SCREEN_HEIGHT))
-            pygame.draw.rect(screen, BLACK_MATTE, (half_w, 0, half_w, SCREEN_HEIGHT))
+            # Update and Draw Crumble Effect (Guard against None after restart)
+            if crumble_effect:
+                crumble_effect.update()
+                crumble_effect.draw(canvas) # Draw to canvas
             
-            # Text
-            font = pygame.font.Font(None, 100)
-            
-            text_game = font.render("GAME", True, BLACK_MATTE)
-            text_rect_g = text_game.get_rect(center=(half_w - 150, SCREEN_HEIGHT/2 - 50))
-            screen.blit(text_game, text_rect_g)
-            
-            text_over = font.render("OVER", True, CREAM)
-            text_rect_o = text_over.get_rect(center=(half_w + 150, SCREEN_HEIGHT/2 - 50))
-            screen.blit(text_over, text_rect_o)
-            
-            font_s = pygame.font.Font(None, 40)
-            msg = font_s.render("Press R to Restart", True, (150, 150, 150))
-            msg_rect = msg.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 50))
-            screen.blit(msg, msg_rect)
-            
+            # Blit canvas to screen (scaled)
+            target_size = screen.get_size()
+            if target_size != (SCREEN_WIDTH, SCREEN_HEIGHT):
+                pygame.transform.smoothscale(canvas, target_size, screen)
+            else:
+                screen.blit(canvas, (0,0))
+                
             pygame.display.flip()
             continue
         
@@ -1369,6 +1446,12 @@ def run(screen, settings, start_new_game=False):
                                 player.take_damage(10)
                                 if game_over_sound: game_over_sound.play() # Feedback?
                                 
+                                # CHECK DEATH
+                                if player.health <= 0:
+                                    trigger_death()
+                                
+                            player.shake_intensity = 15.0
+                                
                             player.shake_intensity = 15.0
                             dx = player.x - proj.x
                             if dx == 0: dx = 1
@@ -1593,6 +1676,11 @@ def run(screen, settings, start_new_game=False):
             
             # Tutorial Hint for Mask ON/OFF at platform x=2900
             # Tutorial Hint for Mask ON/OFF removed
+            
+            # Fall Death Check (World Coordinate based)
+            # Map is ~2000px high, so 3000 is a safe kill plane
+            if player.y > 3000:
+                trigger_death()
             
             # Tutorial Hint for Fire at white platform (x=9350-9600)
             if current_level == "TUTORIAL" and 9350 <= player.x <= 9600:
