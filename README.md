@@ -5,7 +5,7 @@
 <h1 align="center">MonoMask</h1>
 
 <p align="center">
-  <strong>🥈 2nd Runner-Up at Global Game Jam 2026 — IIIT Sricity</strong>
+  <strong>🥉 2nd Runner-Up at Global Game Jam 2026 — IIIT Sricity</strong>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 
 | Event | Achievement | Location |
 |-------|-------------|----------|
-| **Global Game Jam 2026** | 🥈 2nd Runner-Up | IIIT Sricity |
+| **Global Game Jam 2026** | 🥉 2nd Runner-Up | IIIT Sricity |
 
 ---
 
@@ -70,7 +70,7 @@ The latest playable version is available on our **GitHub Releases** page.
 > The current latest release (`v0.1.0`) is a standalone executable for **Windows only**.
 > Mac and Linux users (or Windows users who prefer source) should follow the build instructions below.
 
-[**👉 Download for Windows**](https://github.com/your-username/MonoMask/releases)
+[**👉 Download for Windows**](https://github.com/qonstellations/MonoMask/releases)
 
 ---
 
