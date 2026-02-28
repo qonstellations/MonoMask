@@ -443,7 +443,6 @@ class Player:
     def melee_attack(self):
         """Triggers a melee slash"""
         if self.shoot_cooldown > 0 or self.slash_timer > 0:
-            print(f"Melee REJECT: CD={self.shoot_cooldown} Timer={self.slash_timer}")
             return None
             
         self.shoot_cooldown = 10 # Faster melee attacks

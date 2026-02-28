@@ -118,14 +118,11 @@ MonoMask/
 
 ---
 
-## 🔮 Roadmap
+## 📌 Project Status
+> [!WARNING]
+> **This is a prototype and not a final product.** Expect performance issues (lag), visual glitches, and unpolished mechanics. It was built during a game jam and has not undergone full optimization or QA.
 
-Development is ongoing! Planned features include:
-
-- [ ] More levels with unique mechanics
-- [ ] New enemy types
-- [ ] Story cutscenes
-- [ ] Steam/itch.io release
+We may revisit and continue development in another game engine such as **Godot** in the future — stay tuned!
 
 ---
 
@@ -139,8 +136,7 @@ Built with ❤️ using [Pygame](https://www.pygame.org/).
 
 ## 📜 License
 
-Copyright (c) 2026 MonoMask Team. All Rights Reserved.  
-This project is proprietary. Source code is available for educational and viewing purposes only. See the [LICENSE](LICENSE) file for details.
+This project is open source under the [MIT License](LICENSE). You are free to use, modify, and distribute it — just give credit to the original authors.
 
 ---
 
